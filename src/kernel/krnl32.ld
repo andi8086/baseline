@@ -1,20 +1,26 @@
 ENTRY(.kmain)
 
 SECTIONS {
+        . = 0x100000;
 .boot : {
+        . = ALIGN(8);
         mb_header_start = .;
         KEEP(*(.multiboot))
         }
 .text : {
-        . = 0x10000;
+        . = ALIGN(8);
         kernel_start = .;
         *(.text)
         kernel_end = .;
 }
-.data : { *(.data)
+.data : {
+        . = ALIGN(8);
+        *(.data)
         kdata_end = .;
         }
-.bss : { *(.bss)
+.bss : {
+        . = ALIGN(8);
+        *(.bss)
         kbss_end = .;
         }
 }

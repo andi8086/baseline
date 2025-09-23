@@ -17,8 +17,10 @@ CFLAGS = \
 
 
 objs_32 = \
-        kmain.o
-
+        kmain.o \
+        pe_mem.o \
+        klib.o \
+        kacpi.o
 
 %.o: %.c
 	# gcc $(CFLAGS) -S -fverbose-asm $< -o ${@:.o=.s}
