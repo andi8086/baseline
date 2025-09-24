@@ -74,7 +74,7 @@ void dump32(uint32_t v)
         char *vid = (char *)0xB8000 + 160;
 
         uint8_t c;
-        const int shifts[6] = {28, 24, 20, 16, 12, 8, 4, 0};
+        const int shifts[8] = {28, 24, 20, 16, 12, 8, 4, 0};
 
         for (int j = 0; j < 8; j++) {
                 c = ((v >> shifts[j]) & 15);
