@@ -114,10 +114,40 @@ __attribute__((naked)) void _start(void)
 }
 
 
+
+
+#define MBI_TAG_FRAMEBUFFER 8
+
+typedef struct {
+        uint32_t type;
+        uint32_t size;
+        uint64_t fb_addr;
+        uint32_t fb_pitch;
+        uint32_t fb_width;
+        uint32_t fb_height;
+        uint8_t  fb_bpp;
+} mb_fbi_t;
+
+typedef struct {
+        uint32_t type;
+        uint32_t size;
+} mb_tag_t;
+
+uint16_t *mbi_size;
+mb_tag_t *mbi_tags;
+
+uint32_t *framebuffer_addr;
+uint32_t vwidth;
+uint32_t vheight;
+uint32_t vpitch;
+
 void kmain(uint32_t magic, uint32_t addr)
 {
         char *v = (char *)0xB8000;
         *v = 'R';
+
+        mbi_size = (uint16_t *)addr;
+        mbi_tags = (mb_tag_t *)(addr + 8);
 
         /* check magic */
         if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
@@ -146,6 +176,28 @@ void kmain(uint32_t magic, uint32_t addr)
                 "ljmp 8:1f\n"
                 "1:\n"
         );
+
+        mb_tag_t *tag;
+        mb_fbi_t *fbit;
+        for (tag = mbi_tags; tag->type != 0;
+             tag = (mb_tag_t *)((uint8_t *)tag +
+                   ((tag->size + 7) & ~7))) {
+                switch (tag->type) {
+                case MBI_TAG_FRAMEBUFFER:
+                        fbit = (mb_fbi_t *)tag;
+                        framebuffer_addr = (uint32_t *)fbit->fb_addr;
+                        vwidth = fbit->fb_width;
+                        vheight = fbit->fb_height;
+                        vpitch = fbit->fb_pitch >> 2;
+                break;
+                }
+        }
+
+        for (int y = 0; y < vheight; y++) {
+                for (int x = 0; x < vwidth; x++) {
+                        *(framebuffer_addr + y * vpitch + x) = 0x0000FF;
+                }
+        }
 
         void *rsdp = find_rsdp();
 
