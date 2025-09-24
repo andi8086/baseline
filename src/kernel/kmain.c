@@ -1,4 +1,5 @@
 #define MULTIBOOT2_HEADER_MAGIC 0xe85250d6
+#define MULTIBOOT2_BOOTLOADER_MAGIC 0x36d76289
 
 #include <stdint.h>
 
@@ -9,7 +10,8 @@ extern char kbss_end;
 extern char kernel_start;
 extern char kernel_end;
 
-void kmain(void);
+void _start(void);
+void kmain(uint32_t, uint32_t);
 
 #pragma pack(1)
 typedef struct {
@@ -31,6 +33,11 @@ struct multiboot_header {
         mb_tag_header_t tag1;
         uint32_t entry;
         uint32_t _dummy;
+        mb_tag_header_t tag2;
+        uint32_t width;
+        uint32_t height;
+        uint32_t bpp;
+        uint32_t _dummy2;
         mb_tag_header_t term;
 } mb_header  __attribute__((section(".multiboot"))) = {
         .magic = MULTIBOOT2_HEADER_MAGIC,
@@ -51,7 +58,15 @@ struct multiboot_header {
                 .flags = 0,
                 .size = 12,
         },
-        .entry = (uint32_t)&kmain,
+        .entry = (uint32_t)&_start,
+        .tag2 = {
+                .type = 5,      /* request framebuffer */
+                .flags = 0,     /* not optional ! */
+                .size = 20
+        },
+        .width = 1280,
+        .height = 1024,
+        .bpp = 32,
         .term = {
                 .type = 0,
                 .flags = 0,
@@ -85,10 +100,29 @@ void dump32(uint32_t v)
 }
 
 
-void kmain(void)
+__attribute__((naked)) void _start(void)
+{
+        asm (
+                "pushd 0\n"
+                "popf\n"
+                "push ebx\n"
+                "push eax\n"
+                "call kmain\n"
+                "1: hlt\n"
+                "jmp 1b\n"
+        );
+}
+
+
+void kmain(uint32_t magic, uint32_t addr)
 {
         char *v = (char *)0xB8000;
         *v = 'R';
+
+        /* check magic */
+        if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
+                return;
+        }
 
         init_seg_desc(&gdt_descs[1], 0, 0xFFFFF, 0x9A, 0x0C);
         init_seg_desc(&gdt_descs[2], 0, 0xFFFFF, 0x92, 0x0C);
@@ -112,7 +146,6 @@ void kmain(void)
                 "ljmp 8:1f\n"
                 "1:\n"
         );
-
 
         void *rsdp = find_rsdp();
 
