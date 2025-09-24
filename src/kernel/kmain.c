@@ -252,7 +252,64 @@ void kmain(uint32_t magic, uint32_t addr)
 */
         void *rsdp = find_rsdp();
         vcon_printf(&boot_console, "RSDT at %p\n", (uint32_t)rsdp);
-//        dump32((uintptr_t)rsdp);
+
+#define MBI_TAG_MEMORY_MAP 6
+        typedef struct {
+                uint32_t type;
+                uint32_t size;
+                uint32_t entry_size;
+                uint32_t entry_version;
+        } mbi_mem_map_t;
+
+        typedef struct {
+                uint64_t base_addr;
+                uint64_t len;
+                uint32_t type;
+                uint32_t res;
+        } mbi_mem_map_entry_t;
+
+        mbi_mem_map_t *mem_map;
+        mbi_mem_map_entry_t *mem_map_e;
+
+        for (tag = mbi_tags; tag->type != 0;
+             tag = (mb_tag_t *)((uint8_t *)tag +
+                   ((tag->size + 7) & ~7))) {
+                switch (tag->type) {
+                case MBI_TAG_MEMORY_MAP:
+                        mem_map = (mbi_mem_map_t *)tag;
+                        mem_map_e = (mbi_mem_map_entry_t *)
+                                ((uint8_t *)tag + sizeof(mbi_mem_map_t));
+                        vcon_printf(&boot_console, "Memory Map:\n");
+                        while ((uint8_t *)mem_map_e <
+                               (uint8_t *)mem_map + mem_map->size) {
+
+                                vcon_printf(&boot_console, "base %p len %p ",
+                                        (uint32_t)mem_map_e->base_addr,
+                                        (uint32_t)mem_map_e->len);
+
+                                switch (mem_map_e->type) {
+                                case 1: vcon_printf(&boot_console, "available");
+                                        break;
+                                case 3: vcon_printf(&boot_console, "ACPI info");
+                                        break;
+                                case 4: vcon_printf(&boot_console, "preserved");
+                                        break;
+                                case 5: vcon_printf(&boot_console, "defective");
+                                        break;
+                                default: vcon_printf(&boot_console, "reserved");
+                                        break;
+
+                                }
+                                vcon_printf(&boot_console, "\n");
+
+
+                                mem_map_e = (mbi_mem_map_entry_t *)
+                                        ((uint8_t *)mem_map_e + mem_map->entry_size);
+                        }
+
+                        break;
+                }
+        }
 
         while (1) {};
 }
