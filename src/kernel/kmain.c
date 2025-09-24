@@ -77,6 +77,13 @@ struct multiboot_header {
 
 #include "pe_mem.h"
 #include "kacpi.h"
+#include "video/fb.h"
+#include "fonts/psf2.h"
+
+
+extern psf2_header_t *console_font;
+extern char _binary_cp850_8x16_psfu_start;
+
 
 __attribute__((aligned(64)))
 seg_desc_t gdt_descs[5] = {0};
@@ -136,10 +143,6 @@ typedef struct {
 uint16_t *mbi_size;
 mb_tag_t *mbi_tags;
 
-uint32_t *framebuffer_addr;
-uint32_t vwidth;
-uint32_t vheight;
-uint32_t vpitch;
 
 void kmain(uint32_t magic, uint32_t addr)
 {
@@ -185,18 +188,28 @@ void kmain(uint32_t magic, uint32_t addr)
                 switch (tag->type) {
                 case MBI_TAG_FRAMEBUFFER:
                         fbit = (mb_fbi_t *)tag;
-                        framebuffer_addr = (uint32_t *)fbit->fb_addr;
-                        vwidth = fbit->fb_width;
-                        vheight = fbit->fb_height;
-                        vpitch = fbit->fb_pitch >> 2;
-                break;
+                        video_init(fbit->fb_addr, fbit->fb_width,
+                                   fbit->fb_height, fbit->fb_bpp,
+                                   fbit->fb_pitch);
+                        break;
                 }
         }
 
-        for (int y = 0; y < vheight; y++) {
-                for (int x = 0; x < vwidth; x++) {
-                        *(framebuffer_addr + y * vpitch + x) = 0x0000FF;
+        if (!vfb.addr) {
+                /* error, no display */
+                while (1);
+        }
+
+        console_font = (psf2_header_t *)&_binary_cp850_8x16_psfu_start;
+
+        for (int y = 0; y < vfb.height; y++) {
+                for (int x = 0; x < vfb.width; x++) {
+                        video_putpixel(x, y, 0x0000FF);
                 }
+        }
+
+        for (int i = 0; i < 256; i++) {
+                video_putchar((i * 8) % 80, (i * 8)/80*16, (char)i, 0xFFFF00, 0x0000FF);
         }
 
         void *rsdp = find_rsdp();
