@@ -22,7 +22,11 @@ objs_32 = \
         klib.o \
         kacpi.o \
         video/fb.o \
-        fonts/cp850_8x16.o
+        video/vcon.o \
+        fonts/tsvga8x16.o \
+        assets/logo.o
+
+#       fonts/ega8x16.o
 
 %.o: %.c
 	# gcc $(CFLAGS) -S -fverbose-asm $< -o ${@:.o=.s}

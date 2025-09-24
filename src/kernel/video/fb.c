@@ -24,13 +24,14 @@ void video_putpixel(uint32_t x, uint32_t y, uint32_t color)
 }
 
 
-void video_putchar(uint32_t x, uint32_t y, char c, uint32_t fc, uint32_t bc)
+void video_putchar(uint32_t x, uint32_t y, unsigned char c, uint32_t fc, uint32_t bc)
 {
-        uint8_t *glyph_start = (uint8_t *)console_font + 32 + console_font->bpg * c;
+//        uint8_t *glyph_start = (uint8_t *)console_font + 32 + console_font->bpg * c;
+        uint8_t *glyph_start = (uint8_t *)console_font + 16 * (uint32_t)c;
 
         uint8_t *gp = glyph_start;
 
-        for (uint32_t py = y; py < y + console_font->height; py++) {
+        for (uint32_t py = y; py < y + 16; py++) {
                 uint32_t px = x;
 
                 uint8_t mask = 0x80;

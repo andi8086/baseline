@@ -78,11 +78,13 @@ struct multiboot_header {
 #include "pe_mem.h"
 #include "kacpi.h"
 #include "video/fb.h"
+#include "video/vcon.h"
 #include "fonts/psf2.h"
 
 
 extern psf2_header_t *console_font;
-extern char _binary_cp850_8x16_psfu_start;
+// extern char _binary_ATIEgaWonder800p_8x16_bin_start;
+extern char _binary_TSVGA_ET4000_8x16_bin_start;
 
 
 __attribute__((aligned(64)))
@@ -143,6 +145,10 @@ typedef struct {
 uint16_t *mbi_size;
 mb_tag_t *mbi_tags;
 
+extern char _binary_logo_data_start;
+extern char _binary_logo_data_end;
+
+vcon_t boot_console;
 
 void kmain(uint32_t magic, uint32_t addr)
 {
@@ -200,21 +206,53 @@ void kmain(uint32_t magic, uint32_t addr)
                 while (1);
         }
 
-        console_font = (psf2_header_t *)&_binary_cp850_8x16_psfu_start;
+//        console_font = (psf2_header_t *)&_binary_pho437_8x16_psfu_start;
+//        console_font = (psf2_header_t *)&_binary_ATIEgaWonder800p_8x16_bin_start;
+        console_font = (psf2_header_t *)&_binary_TSVGA_ET4000_8x16_bin_start;
+        uint32_t *logo = (uint32_t *)&_binary_logo_data_start;
+        uint32_t *logo_end = (uint32_t *)&_binary_logo_data_end;
 
         for (int y = 0; y < vfb.height; y++) {
                 for (int x = 0; x < vfb.width; x++) {
-                        video_putpixel(x, y, 0x0000FF);
+                        video_putpixel(x, y, 0x000000);
                 }
         }
 
-        for (int i = 0; i < 256; i++) {
-                video_putchar((i * 8) % 80, (i * 8)/80*16, (char)i, 0xFFFF00, 0x0000FF);
+        int y = 127;
+        int logo_width = 844;
+        int xleft = 640 - logo_width/2, x = xleft;
+
+        uint32_t *pixel_data = logo;
+        while (pixel_data < logo_end) {
+                if (((pixel_data - logo) % logo_width) == 0) {
+                        y++;
+                        x = xleft;
+                }
+                uint32_t r = *(uint8_t *)pixel_data;
+                uint32_t g = *((uint8_t *)pixel_data + 1);
+                uint32_t b = *((uint8_t *)pixel_data + 2);
+                video_putpixel(x, y, (r << 16) | (g << 8) | b);
+                x++;
+                pixel_data++;
         }
 
-        void *rsdp = find_rsdp();
+        vcon_init(&boot_console,
+                  (uint32_t)(vfb.addr + 512*1280),
+                  1280, 512);
+//        vcon_set_fb(&boot_console, &vfb);
 
-        dump32((uintptr_t)rsdp);
+        vcon_puts(&boot_console, "Booting...\n");
+        vcon_puts(&boot_console, "Kernel v0.01\n");
+
+/*
+        for (uint32_t i = 0; i < 256; i++) {
+                video_putchar((i * 8) % 640, ((i * 8)/640) * 16, (char)i,
+                              0xFFFF00, 0x000000);
+        }
+*/
+        void *rsdp = find_rsdp();
+        vcon_printf(&boot_console, "RSDT at %p\n", (uint32_t)rsdp);
+//        dump32((uintptr_t)rsdp);
 
         while (1) {};
 }
