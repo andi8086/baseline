@@ -319,6 +319,7 @@ void kmain(uint32_t magic, uint32_t addr)
 
         page_table_init();
 
+        vcon_printf(&boot_console, "Page tables for video initialized\n");
 
         while (1) {};
 }

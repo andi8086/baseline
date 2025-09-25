@@ -1,5 +1,7 @@
 #include "pe_mem.h"
 
+#include "video/fb.h"
+
 
 void init_seg_desc(seg_desc_t *seg,
                    uint32_t base,
@@ -42,7 +44,7 @@ uint32_t page_directory[1024] __attribute__((aligned(4096)));
    for the lower 1 MB (VM86 if needed) */
 
 uint32_t page_table_kernel[1024] __attribute__((aligned(4096)));
-
+uint32_t page_table_fb[2048] __attribute__((aligned(4096)));
 #define MEM_PAGE_PRESENT 1
 
 
@@ -77,5 +79,23 @@ void page_table_init(void)
         );
 
 
+        /* Add identity mapping for the frame buffer */
+        extern v_framebuffer_t vfb;
+        uint32_t fb_addr = (uint32_t)(uintptr_t)vfb.addr;
+
+        /* calculate page directory entry for frame buffer start */
+        uint32_t page_dir_idx = fb_addr >> 22;
+
+        /* The buffer has 5 MB, hence we can be sure we need to map
+           two consecutive page tables */
+        uint32_t fb_addr_4M = fb_addr & 0xFFC00000;
+
+        for (uint32_t i = 0; i < 2048; i++) {
+                page_table_fb[i] = fb_addr_4M + (i << 12) | 1;
+        }
+        page_directory[page_dir_idx] = (uint32_t)(uintptr_t)&page_table_fb[0];
+        page_directory[page_dir_idx] |= 1;
+        page_directory[page_dir_idx + 1] = (uint32_t)(uintptr_t)&page_table_fb[1024];
+        page_directory[page_dir_idx + 1] |= 1;
 }
 
