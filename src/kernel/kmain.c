@@ -323,3 +323,10 @@ void kmain(uint32_t magic, uint32_t addr)
 
         while (1) {};
 }
+
+
+
+void abort(void)
+{
+        while (1) {};
+}

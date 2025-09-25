@@ -24,7 +24,9 @@ objs_32 = \
         video/fb.o \
         video/vcon.o \
         fonts/tsvga8x16.o \
-        assets/logo.o
+        assets/logo.o \
+        btrb_compact.o \
+        heapm32.o
 
 #       fonts/ega8x16.o
 
