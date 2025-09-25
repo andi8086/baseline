@@ -178,7 +178,7 @@ void kmain(uint32_t magic, uint32_t addr)
                 "mov ds, ax\n"
                 "mov es, ax\n"
                 "mov ss, ax\n"
-                "mov esp, 0x400000\n"
+                "mov esp, 0x3FFFFF\n"
                 "mov es, ax\n"
                 "mov fs, ax\n"
                 "mov gs, ax\n"
@@ -252,6 +252,7 @@ void kmain(uint32_t magic, uint32_t addr)
 */
         void *rsdp = find_rsdp();
         vcon_printf(&boot_console, "RSDT at %p\n", (uint32_t)rsdp);
+        vcon_printf(&boot_console, "Frame buffer at %p\n", (uint32_t)vfb.addr);
 
 #define MBI_TAG_MEMORY_MAP 6
         typedef struct {
@@ -310,6 +311,14 @@ void kmain(uint32_t magic, uint32_t addr)
                         break;
                 }
         }
+
+        extern uint32_t page_table_kernel[1024];
+
+        vcon_printf(&boot_console, "Page table of kernel is at %p\n",
+                    (uint32_t)page_table_kernel);
+
+        page_table_init();
+
 
         while (1) {};
 }

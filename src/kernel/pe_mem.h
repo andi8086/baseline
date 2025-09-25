@@ -55,4 +55,8 @@ typedef struct {
         uint32_t base;
 } gdt_t;
 
+
+void page_table_init(void);
+
+
 #endif
