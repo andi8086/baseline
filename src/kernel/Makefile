@@ -31,8 +31,9 @@ objs_32 = \
 #       fonts/ega8x16.o
 
 %.o: %.c
-	# gcc $(CFLAGS) -S -fverbose-asm $< -o ${@:.o=.s}
-	gcc $(CFLAGS) -c -Wa,-aslh=${@:.o=.s} $< -o $@
+	$(info CC $@)
+	@gcc $(CFLAGS) -c -Wa,-aslh=${@:.o=.s} $< -o $@
 
 krnl32.elf: $(objs_32)
-	gcc $(CFLAGS) -T krnl32.ld -lgcc $^ -o $@
+	$(info LD $@)
+	@gcc $(CFLAGS) -T krnl32.ld -lgcc $^ -o $@
