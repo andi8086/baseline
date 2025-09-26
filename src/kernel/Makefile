@@ -8,12 +8,12 @@ CFLAGS = \
         -nostdlib \
         -m32 \
         -Wl,-melf_i386 \
-        -Wl,-ekmain \
+        -Wl,-e_start \
         -masm=intel \
         -fno-stack-protector \
         -O0 \
         -fno-pic \
-        -fno-pie
+        -no-pie
 
 
 objs_32 = \
