@@ -15,7 +15,6 @@ CFLAGS = \
         -fno-pic \
         -no-pie
 
-
 objs_32 = \
         kmain.o \
         pe_mem.o \

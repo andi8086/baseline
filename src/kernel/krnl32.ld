@@ -1,18 +1,20 @@
-ENTRY(.kmain)
+ENTRY(._start)
+
 
 SECTIONS {
         . = 0x100000;
-.boot : {
+.boot (READONLY) : {
         . = ALIGN(8);
         mb_header_start = .;
         KEEP(*(.multiboot))
         }
-.text : {
+.text (READONLY) : {
         . = ALIGN(8);
         kernel_start = .;
         *(.text)
         kernel_end = .;
-}
+        }
+        . = ALIGN(CONSTANT(COMMONPAGESIZE));
 .data : {
         . = ALIGN(8);
         *(.data)
