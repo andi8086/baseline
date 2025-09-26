@@ -28,7 +28,7 @@ SOFTWARE.
 #include "heapm32.h"
 
 
-#define P64(x) ((void *)((uintptr_t)ctx->mem_start + x))
+#define P64(x) ((void *)(uintptr_t)((uintptr_t)ctx->mem_start + x))
 #define P32(x) ((uint32_t)((uintptr_t)x - (uintptr_t)ctx->mem_start))
 
 #ifdef HEAPM_USE_MUTEX_X
@@ -273,7 +273,8 @@ already_aligned:
          * zero gets written to location of new_pfx->padding directly */
 
         uint32_t *padd_val =
-            (uint32_t *)(((uintptr_t)&new_pfx->padding) + alignment_padding);
+            (uint32_t *)(uintptr_t)
+                (((uintptr_t)&new_pfx->padding) + alignment_padding);
         *padd_val = (uint32_t)alignment_padding;
 
 #ifdef HEAPM_MALLOC_LINE_STORE
