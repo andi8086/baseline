@@ -1,7 +1,7 @@
 #include "pe_mem.h"
 
 #include "video/fb.h"
-
+#include "ksmp_apic.h"
 
 void init_seg_desc(seg_desc_t *seg,
                    uint32_t base,
@@ -45,6 +45,17 @@ uint32_t page_directory[1024] __attribute__((aligned(4096)));
 
 uint32_t page_table_kernel[1024] __attribute__((aligned(4096)));
 uint32_t page_table_fb[2048] __attribute__((aligned(4096)));
+
+/* local apic is usualy add address 0xFFE0 0000 but even that
+   is not guaranteed.
+   Hence we map 4 MB from
+        (lapic_base & 0xFFC0 0000) + 0x0000 0000
+   to   (lapic_base & 0xFFC0 0000) + 0x003F F000
+
+   Hopefully this works for all cases */
+
+
+uint32_t page_table_lapic[1024] __attribute__((aligned(4096)));
 #define MEM_PAGE_PRESENT 1
 
 
@@ -97,5 +108,17 @@ void page_table_init(void)
         page_directory[page_dir_idx] |= 1;
         page_directory[page_dir_idx + 1] = (uint32_t)(uintptr_t)&page_table_fb[1024];
         page_directory[page_dir_idx + 1] |= 1;
+
+        /* init mapping for local apic */
+        page_dir_idx = smp_lapic_addr >> 22;
+
+        page_directory[page_dir_idx] = (uint32_t)(uintptr_t)page_table_lapic;
+        page_directory[page_dir_idx] |= 1;
+
+        for (int32_t i = 0; i < 1024; i++) {
+                page_table_lapic[i] =
+                        (smp_lapic_addr & 0xFFC00000) | (i << 12) | 1;
+        }
+
 }
 

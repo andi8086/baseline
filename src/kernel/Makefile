@@ -25,9 +25,17 @@ objs_32 = \
         fonts/tsvga8x16.o \
         assets/logo.o \
         btrb_compact.o \
-        heapm32.o
+        heapm32.o \
+        ksmp_apic.o \
+        smp_trampoline.o \
+        pc_pit.o
+
 
 #       fonts/ega8x16.o
+
+smp_trampoline.o: smp_trampoline.S
+	$(info AS $@)
+	@gcc $(CFLAGS) -c -Wa,-aslh=${@:.o=.s} $< -o $@
 
 %.o: %.c
 	$(info CC $@)

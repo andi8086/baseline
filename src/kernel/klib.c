@@ -2,6 +2,8 @@
 
 #include "klib.h"
 
+#include <stdint.h>
+
 
 int memcmp(const void *a, const void *b, unsigned long size)
 {
@@ -15,4 +17,20 @@ int memcmp(const void *a, const void *b, unsigned long size)
         }
 
         return (*((unsigned char *)a) - *((unsigned char *)b));
+}
+
+
+void memcpy(void *dst, void *src, unsigned long size)
+{
+        uint8_t *d = dst;
+        uint8_t *s = src;
+        if (!size) {
+                return;
+        }
+
+        while (--size) {
+                *d = *s;
+                d++;
+                s++;
+        }
 }

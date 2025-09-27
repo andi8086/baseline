@@ -2,7 +2,7 @@
 #define MULTIBOOT2_BOOTLOADER_MAGIC 0x36d76289
 
 #include <stdint.h>
-
+#include "klib.h"
 
 extern char mb_header_start;
 extern char kdata_end;
@@ -80,6 +80,7 @@ struct multiboot_header {
 #include "video/fb.h"
 #include "video/vcon.h"
 #include "fonts/psf2.h"
+#include "ksmp_apic.h"
 
 
 extern psf2_header_t *console_font;
@@ -250,8 +251,20 @@ void kmain(uint32_t magic, uint32_t addr)
                               0xFFFF00, 0x000000);
         }
 */
-        void *rsdp = find_rsdp();
-        vcon_printf(&boot_console, "RSDT at %p\n", (uint32_t)rsdp);
+        rsdp_header_t *rsdp = kacpi_find_rsdp();
+        vcon_printf(&boot_console, "RSDT at %p\n", rsdp->rsdt_addr);
+
+        if (rsdp) {
+                rsdt_t *rsdt = (rsdt_t *)(uintptr_t)(rsdp->rsdt_addr);
+                int entries = (rsdt->h.length - sizeof(rsdt->h)) / 4;
+                vcon_printf(&boot_console, "RSDT has %p entries\n", (uint32_t)entries);
+                void *madt = kacpi_find_madt(rsdp);
+                vcon_printf(&boot_console, "MADT at %p\n", (uint32_t)madt);
+                if (madt) {
+                        kacpi_madt_init(madt);
+                }
+        }
+
         vcon_printf(&boot_console, "Frame buffer at %p\n", (uint32_t)vfb.addr);
 
 #define MBI_TAG_MEMORY_MAP 6
@@ -320,6 +333,8 @@ void kmain(uint32_t magic, uint32_t addr)
         page_table_init();
 
         vcon_printf(&boot_console, "Page tables for video initialized\n");
+
+        cpu_wake_all();
 
         while (1) {};
 }
