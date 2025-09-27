@@ -13,6 +13,8 @@ typedef struct {
         uint8_t base_31_24;
 } seg_desc_t;
 
+#define PAGE_SIZE 4096UL
+
 
 #define SEG_DESC_ACC_PRESENT    0x80
 #define SEG_DESC_ACC_DPL(x)     ((x) << 5)
@@ -57,6 +59,20 @@ typedef struct {
 
 
 void page_table_init(void);
+
+
+typedef struct {
+        uint32_t base;
+        uint32_t size;
+} arena_region_t;
+
+
+extern int num_arenas;
+extern arena_region_t arena_mem[16];
+
+void arena_add(uint32_t base, uint32_t size);
+
+
 
 
 #endif

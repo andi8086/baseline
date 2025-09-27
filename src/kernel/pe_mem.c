@@ -122,3 +122,43 @@ void page_table_init(void)
 
 }
 
+
+
+/* maximally supporting 16 scattered areas of memory above 3M */
+/* below 1M is reserved for 16-bit applications, and will be
+   treated separately. 1M till 3M is reserved for kernel and is
+   expected to be available */
+arena_region_t arena_mem[16];
+int num_arenas = 0;
+
+
+extern char mb_header_start;
+extern char kbss_end;
+
+void arena_add(uint32_t base, uint32_t size)
+{
+        uint32_t kernel_end = (uintptr_t)&kbss_end;
+
+        /* make sure, kernel ends at a page boundary */
+        kernel_end = (kernel_end + PAGE_SIZE) & ~(PAGE_SIZE - 1);
+
+        if (base >= (uintptr_t)&mb_header_start &&
+            base + size >= kernel_end + (1UL << 20)) {
+                /* only register memory chunk if
+                        * starts above 1M
+                        * ends >= kernel_end + 1M
+                */
+
+                arena_mem[num_arenas].base =
+                        base > kernel_end + (1UL << 20) ?
+                               base :
+                               kernel_end;
+                arena_mem[num_arenas].size =
+                        base > kernel_end + (1UL << 20) ?
+                               size :
+                               size - (kernel_end - base);
+
+                num_arenas++;
+        }
+
+}

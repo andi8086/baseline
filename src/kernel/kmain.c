@@ -303,6 +303,10 @@ void kmain(uint32_t magic, uint32_t addr)
 
                                 switch (mem_map_e->type) {
                                 case 1: vcon_printf(&boot_console, "available");
+                                        if (mem_map_e->base_addr < UINT32_MAX) {
+                                                arena_add(mem_map_e->base_addr,
+                                                          (uint32_t)mem_map_e->len);
+                                        }
                                         break;
                                 case 3: vcon_printf(&boot_console, "ACPI info");
                                         break;
@@ -337,6 +341,13 @@ void kmain(uint32_t magic, uint32_t addr)
         uint8_t smp_cpus = cpu_wake_all();
 
         vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
+
+        for (int i = 0; i < num_arenas; i++) {
+                vcon_printf(&boot_console, "Arena memory at %p ... %p\n",
+                            arena_mem[i].base, arena_mem[i].base +
+                                               arena_mem[i].size);
+        }
+
         while (1) {};
 }
 
