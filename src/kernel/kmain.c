@@ -334,8 +334,9 @@ void kmain(uint32_t magic, uint32_t addr)
 
         vcon_printf(&boot_console, "Page tables for video initialized\n");
 
-        cpu_wake_all();
+        uint8_t smp_cpus = cpu_wake_all();
 
+        vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
         while (1) {};
 }
 

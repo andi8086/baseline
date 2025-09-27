@@ -21,9 +21,6 @@ int cpu_wake(cpu_info_t *cpu)
 {
         volatile uint8_t *ap_boot_flag = (uint8_t *)0x8FFE;
 
-        vcon_printf(&boot_console,
-                    "Waking up CPU with APIC ID %p\n",
-                    cpu->apic_id);
         *ap_boot_flag = 0;
 
         // clear LAPIC errors
@@ -100,6 +97,7 @@ uint8_t cpu_wake_all(void)
         memcpy((void *)0x8000, &ap_cpu_start, 4096);
 
         uint8_t bsp_id;
+        uint8_t cpus_woken = 0;
 
         /* retrieve our own apic id */
         asm volatile (
@@ -116,6 +114,7 @@ uint8_t cpu_wake_all(void)
                         continue;
                 }
                 cpu_wake(&cpu_table[i]);
+                cpus_woken++;
         }
-        return 0;
+        return cpus_woken;
 }
