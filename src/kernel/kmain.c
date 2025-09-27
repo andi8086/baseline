@@ -238,8 +238,8 @@ void kmain(uint32_t magic, uint32_t addr)
         }
 
         vcon_init(&boot_console,
-                  (uint32_t)(vfb.addr + 512*1280),
-                  1280, 512);
+                  (uint32_t)(vfb.addr + 384*1280),
+                  1280, 640);
 //        vcon_set_fb(&boot_console, &vfb);
 
         vcon_puts(&boot_console, "Booting...\n");
