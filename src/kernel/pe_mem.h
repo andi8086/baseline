@@ -2,6 +2,7 @@
 #define PE_MEM_H
 
 #include <stdint.h>
+#include "heapm32.h"
 
 #pragma pack(1)
 typedef struct {
@@ -61,9 +62,17 @@ typedef struct {
 void page_table_init(void);
 
 
+typedef enum {
+        ARENA_LOW,
+        ARENA_HIGH
+} arena_type_t;
+
+
 typedef struct {
+        arena_type_t type;
         uint32_t base;
         uint32_t size;
+        hm_ctx_t hm_ctx;
 } kmem_arena_t;
 
 

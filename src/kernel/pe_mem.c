@@ -93,8 +93,20 @@ void kmem_arena_add(uint32_t base, uint32_t size)
         extern vcon_t boot_console;
         vcon_printf(&boot_console, "\nkmem_arena: added arena from %p to %p", base, base + size);
 
-        kmem_arenas[kmem_n_arenas].base = base;
-        kmem_arenas[kmem_n_arenas].size = size;
+        kmem_arena_t *kmt = &kmem_arenas[kmem_n_arenas];
+
+        kmt->base = base;
+        kmt->size = size;
+
+        if (base < (1UL << 20)) {
+                kmt->type = ARENA_LOW;
+        } else {
+                kmt->type = ARENA_HIGH;
+        }
+
+        /* initialize heap manager for arena */
+        hm_init(&kmt->hm_ctx, (void *)base, size);
+
         kmem_n_arenas++;
 }
 
