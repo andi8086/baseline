@@ -1,6 +1,7 @@
 #include "pe_mem.h"
 
 #include "video/fb.h"
+#include "video/vcon.h"
 #include "ksmp_apic.h"
 
 void init_seg_desc(seg_desc_t *seg,
@@ -32,11 +33,6 @@ Every page directory entry is 32 bits wide, meaning, we need 4 KB of memory for
 it.
 */
 
-#define MEM_PAGE_PRESENT 1
-
-#define PT_ENTRIES 1024
-#define KERNEL_PAGE_DIR_ADDR (1UL << 22) // @ 4 MB physical address
-#define KERNEL_PAGE_TABLE_ADDR (KERNEL_PAGE_DIR_ADDR + PAGE_SIZE)
 
 uint32_t *page_dir;
 
@@ -66,5 +62,39 @@ void page_table_init(void)
                 "or eax, 0x80000000\n"
                 "mov cr0, eax\n"
         );
+
+        return;
+}
+
+
+#define KMEM_ARENA_MAX 16
+
+static int kmem_n_arenas = 0;
+static kmem_arena_t kmem_arenas[KMEM_ARENA_MAX];
+
+
+void kmem_arena_add(uint32_t base, uint32_t size)
+{
+        if (kmem_n_arenas == KMEM_ARENA_MAX) {
+                return;
+        }
+
+        extern char mb_header_start;
+        /* check if chunk includes the kernel */
+        if (base < (uintptr_t)&mb_header_start &&
+            base + size > KERNEL_STACK_END) {
+                if (size <= KERNEL_STACK_END - base) {
+                        return;
+                }
+                size = size - (KERNEL_STACK_END - base);
+                base = KERNEL_STACK_END;
+        }
+
+        extern vcon_t boot_console;
+        vcon_printf(&boot_console, "\nkmem_arena: added arena from %p to %p", base, base + size);
+
+        kmem_arenas[kmem_n_arenas].base = base;
+        kmem_arenas[kmem_n_arenas].size = size;
+        kmem_n_arenas++;
 }
 

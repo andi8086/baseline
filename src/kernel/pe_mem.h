@@ -60,4 +60,22 @@ typedef struct {
 
 void page_table_init(void);
 
+
+typedef struct {
+        uint32_t base;
+        uint32_t size;
+} kmem_arena_t;
+
+
+void kmem_arena_add(uint32_t base, uint32_t size);
+
+
+#define MEM_PAGE_PRESENT 1
+
+#define PT_ENTRIES 1024
+#define KERNEL_PAGE_DIR_ADDR ((1UL << 22) - PAGE_SIZE) // @ 4 MB physical address
+#define KERNEL_PAGE_TABLE_ADDR (KERNEL_PAGE_DIR_ADDR + PAGE_SIZE)
+#define KERNEL_PAGE_TABLE_END (2UL << 22)
+#define KERNEL_STACK_END      ((2UL << 22) + (1UL << 20))
+
 #endif

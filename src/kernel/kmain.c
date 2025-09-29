@@ -150,6 +150,8 @@ extern char _binary_logo_data_start;
 extern char _binary_logo_data_end;
 
 vcon_t boot_console;
+        
+uint32_t *kesp = (uint32_t *)KERNEL_STACK_END;
 
 void kmain(uint32_t magic, uint32_t addr)
 {
@@ -173,13 +175,14 @@ void kmain(uint32_t magic, uint32_t addr)
         gdt.base = (uintptr_t)gdt_descs;
         gdt.lim = sizeof(gdt_descs);
 
+
         asm (
                 "lgdt [gdt]\n"
                 "mov ax, 0x10\n"
                 "mov ds, ax\n"
                 "mov es, ax\n"
                 "mov ss, ax\n"
-                "mov esp, 0x3FFFFF\n"
+                "mov esp, kesp\n"
                 "mov es, ax\n"
                 "mov fs, ax\n"
                 "mov gs, ax\n"
@@ -285,6 +288,7 @@ void kmain(uint32_t magic, uint32_t addr)
         mbi_mem_map_t *mem_map;
         mbi_mem_map_entry_t *mem_map_e;
 
+
         for (tag = mbi_tags; tag->type != 0;
              tag = (mb_tag_t *)((uint8_t *)tag +
                    ((tag->size + 7) & ~7))) {
@@ -303,6 +307,8 @@ void kmain(uint32_t magic, uint32_t addr)
 
                                 switch (mem_map_e->type) {
                                 case 1: vcon_printf(&boot_console, "available");
+                                        kmem_arena_add(mem_map_e->base_addr,
+                                                       mem_map_e->len);
                                         break;
                                 case 3: vcon_printf(&boot_console, "ACPI info");
                                         break;
@@ -324,8 +330,9 @@ void kmain(uint32_t magic, uint32_t addr)
                         break;
                 }
         }
-
+        
         page_table_init();
+
 
         uint8_t smp_cpus = cpu_wake_all();
 
