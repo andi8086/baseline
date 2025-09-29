@@ -25,140 +25,46 @@ void init_seg_desc(seg_desc_t *seg,
      pdir         ptbl          offset
      index        index
 
-Hence, in order to map the whole 4G of memory,
-we need 1024 page directory entries, because
-the page directory index has 10 bits.
+Hence, in order to map the whole 4G of memory, we need 1024 page directory
+entries, because the page directory index has 10 bits.
 
-Every page directory entry is 32 bits wide,
-meaning, we need 4 KB of memory for it.
+Every page directory entry is 32 bits wide, meaning, we need 4 KB of memory for
+it.
 */
 
-uint32_t page_directory[1024] __attribute__((aligned(4096)));
-
-/* Our kernel runs at 0x100000, i.e. 1 MB hence
-   to be able to turn paging on, we need to initialize
-   the corresponding page directory entries with page tables
-   with identity mapping */
-
-/* 3 MB of kernel memory need 768 pages, the first 256 are
-   for the lower 1 MB (VM86 if needed) */
-
-uint32_t page_table_kernel[1024] __attribute__((aligned(4096)));
-uint32_t page_table_fb[2048] __attribute__((aligned(4096)));
-
-/* local apic is usualy add address 0xFFE0 0000 but even that
-   is not guaranteed.
-   Hence we map 4 MB from
-        (lapic_base & 0xFFC0 0000) + 0x0000 0000
-   to   (lapic_base & 0xFFC0 0000) + 0x003F F000
-
-   Hopefully this works for all cases */
-
-
-uint32_t page_table_lapic[1024] __attribute__((aligned(4096)));
 #define MEM_PAGE_PRESENT 1
 
+#define PT_ENTRIES 1024
+#define KERNEL_PAGE_DIR_ADDR (1UL << 22) // @ 4 MB physical address
+#define KERNEL_PAGE_TABLE_ADDR (KERNEL_PAGE_DIR_ADDR + PAGE_SIZE)
+
+uint32_t *page_dir;
 
 void page_table_init(void)
 {
-        /* be sure all page dir entries are 0, i.e.
-           no page table is present */
-        for (int i = 0; i < 1024; i++) {
-                page_directory[i] = 0;
-        }
+        /* we assume 8 MB of RAM minimum and put the page directory
+           and all kernel page tables in the 4 MB following the kernel */
+        page_dir = (uint32_t *)KERNEL_PAGE_DIR_ADDR;
+        uint32_t *page_tables = (uint32_t *)KERNEL_PAGE_TABLE_ADDR;
 
-        /* for an address space of 0x0000 0000 - 0x003F FFFF
-           we need 1 page table a 1024 page table entries a 4K pages */
-        page_directory[0] = (uint32_t)(uintptr_t)page_table_kernel;
-        page_directory[0] |= MEM_PAGE_PRESENT;
+        /* perform identity mapping of whole 4G address space */
+        for (uint32_t pd_idx = 0; pd_idx < PT_ENTRIES; pd_idx++) {
+                page_dir[pd_idx] = (uint32_t)(page_tables + pd_idx * PT_ENTRIES);
+                page_dir[pd_idx] |= 1;
 
-        /* initialize the kernel page table, and put in the addresses
-           0x00000000 - 0x003FF000
-        */
-        for (uint32_t i = 0; i < 1024; i++) {
-                page_table_kernel[i] = (i << 12);
-                page_table_kernel[i] |= MEM_PAGE_PRESENT;
+                uint32_t *pt = page_tables + pd_idx * PT_ENTRIES;
+                for (uint32_t pt_idx = 0; pt_idx < PT_ENTRIES; pt_idx++) {
+                        pt[pt_idx] = (pd_idx << 22) | (pt_idx << 12) | 1;
+                }
         }
 
         /* load CR3 register and enable paging */
         asm (
-                "mov eax, offset page_directory\n"
+                "mov eax, page_dir\n"
                 "mov cr3, eax\n"
                 "mov eax, cr0\n"
                 "or eax, 0x80000000\n"
                 "mov cr0, eax\n"
         );
-
-
-        /* Add identity mapping for the frame buffer */
-        extern v_framebuffer_t vfb;
-        uint32_t fb_addr = (uint32_t)(uintptr_t)vfb.addr;
-
-        /* calculate page directory entry for frame buffer start */
-        uint32_t page_dir_idx = fb_addr >> 22;
-
-        /* The buffer has 5 MB, hence we can be sure we need to map
-           two consecutive page tables */
-        uint32_t fb_addr_4M = fb_addr & 0xFFC00000;
-
-        for (uint32_t i = 0; i < 2048; i++) {
-                page_table_fb[i] = fb_addr_4M + (i << 12) | 1;
-        }
-        page_directory[page_dir_idx] = (uint32_t)(uintptr_t)&page_table_fb[0];
-        page_directory[page_dir_idx] |= 1;
-        page_directory[page_dir_idx + 1] = (uint32_t)(uintptr_t)&page_table_fb[1024];
-        page_directory[page_dir_idx + 1] |= 1;
-
-        /* init mapping for local apic */
-        page_dir_idx = smp_lapic_addr >> 22;
-
-        page_directory[page_dir_idx] = (uint32_t)(uintptr_t)page_table_lapic;
-        page_directory[page_dir_idx] |= 1;
-
-        for (int32_t i = 0; i < 1024; i++) {
-                page_table_lapic[i] =
-                        (smp_lapic_addr & 0xFFC00000) | (i << 12) | 1;
-        }
-
 }
 
-
-
-/* maximally supporting 16 scattered areas of memory above 3M */
-/* below 1M is reserved for 16-bit applications, and will be
-   treated separately. 1M till 3M is reserved for kernel and is
-   expected to be available */
-arena_region_t arena_mem[16];
-int num_arenas = 0;
-
-
-extern char mb_header_start;
-extern char kbss_end;
-
-void arena_add(uint32_t base, uint32_t size)
-{
-        uint32_t kernel_end = (uintptr_t)&kbss_end;
-
-        /* make sure, kernel ends at a page boundary */
-        kernel_end = (kernel_end + PAGE_SIZE) & ~(PAGE_SIZE - 1);
-
-        if (base >= (uintptr_t)&mb_header_start &&
-            base + size >= kernel_end + (1UL << 20)) {
-                /* only register memory chunk if
-                        * starts above 1M
-                        * ends >= kernel_end + 1M
-                */
-
-                arena_mem[num_arenas].base =
-                        base > kernel_end + (1UL << 20) ?
-                               base :
-                               kernel_end;
-                arena_mem[num_arenas].size =
-                        base > kernel_end + (1UL << 20) ?
-                               size :
-                               size - (kernel_end - base);
-
-                num_arenas++;
-        }
-
-}
