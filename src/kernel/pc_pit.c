@@ -1,33 +1,5 @@
 #include "pc_pit.h"
-
-
-void outb(uint16_t port, uint8_t val)
-{
-        asm volatile ("out dx, al" : : "d"(port), "a"(val));
-}
-
-
-void outw(uint16_t port, uint16_t val)
-{
-        asm volatile ("out dx, ax" : : "d"(port), "a"(val));
-}
-
-
-uint8_t inb(int16_t port)
-{
-        uint8_t val;
-        asm volatile ("in al, dx" : "=a"(val) : "d"(port));
-        return val;
-}
-
-
-uint16_t inw(uint16_t port)
-{
-        uint16_t val;
-        asm volatile ("in ax, dx" : "=a"(val) : "d"(port));
-        return val;
-}
-
+#include "kio.h"
 
 
 void pit_wait_ms(uint16_t amount)

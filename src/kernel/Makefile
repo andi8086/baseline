@@ -13,7 +13,32 @@ CFLAGS = \
         -fno-stack-protector \
         -O0 \
         -fno-pic \
-        -no-pie
+        -no-pie \
+        -Iuacpi/include
+
+
+objs_uACPI = \
+        uacpi/source/uacpi.o \
+        uacpi/source/default_handlers.o \
+        uacpi/source/event.o \
+        uacpi/source/interpreter.o \
+        uacpi/source/io.o \
+        uacpi/source/mutex.o \
+        uacpi/source/namespace.o \
+        uacpi/source/notify.o \
+        uacpi/source/opcodes.o \
+        uacpi/source/opregion.o \
+        uacpi/source/osi.o \
+        uacpi/source/registers.o \
+        uacpi/source/resources.o \
+        uacpi/source/shareable.o \
+        uacpi/source/sleep.o \
+        uacpi/source/stdlib.o \
+        uacpi/source/tables.o \
+        uacpi/source/types.o \
+        uacpi/source/uacpi.o \
+        uacpi/source/utilities.o
+
 
 objs_32 = \
         kmain.o \
@@ -28,8 +53,10 @@ objs_32 = \
         heapm32.o \
         ksmp_apic.o \
         smp_trampoline.o \
-        pc_pit.o
-
+        pc_pit.o \
+        kio.o \
+        $(objs_uACPI) \
+        uacpi_osi.o
 
 #       fonts/ega8x16.o
 
@@ -43,4 +70,4 @@ smp_trampoline.o: smp_trampoline.S
 
 krnl32.elf: $(objs_32)
 	$(info LD $@)
-	@gcc $(CFLAGS) -T krnl32.ld -lgcc $^ -o $@
+	@gcc $(CFLAGS) -T krnl32.ld $^ -lgcc -o $@

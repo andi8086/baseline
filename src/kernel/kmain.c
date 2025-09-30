@@ -152,6 +152,7 @@ extern char _binary_logo_data_end;
 vcon_t boot_console;
         
 uint32_t *kesp = (uint32_t *)KERNEL_STACK_END;
+rsdp_header_t *rsdp; /* also needed for uACPI */
 
 void kmain(uint32_t magic, uint32_t addr)
 {
@@ -254,7 +255,7 @@ void kmain(uint32_t magic, uint32_t addr)
                               0xFFFF00, 0x000000);
         }
 */
-        rsdp_header_t *rsdp = kacpi_find_rsdp();
+        rsdp = kacpi_find_rsdp();
         vcon_printf(&boot_console, "RSDT at %p\n", rsdp->rsdt_addr);
 
         if (rsdp) {

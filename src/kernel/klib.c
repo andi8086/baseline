@@ -34,3 +34,33 @@ void memcpy(void *dst, void *src, unsigned long size)
                 s++;
         }
 }
+
+
+void memmove(void *dst, void *src, uint32_t size)
+{
+        uint8_t *d = dst;
+        uint8_t *s = src;
+        if (!size) {
+                return;
+        }
+
+        while (--size) {
+                *d = *s;
+                d++;
+                s++;
+        }
+}
+
+
+void memset(void *dst, uint8_t val, uint32_t size)
+{
+        uint8_t *d = dst;
+        if (!size) {
+                return;
+        }
+
+        while (--size) {
+                *d = val;
+                d++;
+        }
+}

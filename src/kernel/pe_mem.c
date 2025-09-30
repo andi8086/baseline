@@ -110,3 +110,34 @@ void kmem_arena_add(uint32_t base, uint32_t size)
         kmem_n_arenas++;
 }
 
+
+void *kmalloc_high(uint32_t size)
+{
+        /* find heapm32 context for high arena */
+        for (int i = 0; i < kmem_n_arenas; i++) {
+                kmem_arena_t *a = (kmem_arena_t *)&kmem_arenas[i];
+                if (a->type == ARENA_HIGH) {
+                        void *p = hm_alloc(&a->hm_ctx, size);
+                        if (p) {
+                                return p;
+                        }
+                }
+        }
+        return NULL;
+}
+
+
+void kfree(void *p)
+{
+        uintptr_t paddr = (uintptr_t)p;
+        /* we must find the pointers heap context */
+        for (int i = 0; i < kmem_n_arenas; i++) {
+                kmem_arena_t *a = (kmem_arena_t *)&kmem_arenas[i];
+                if (paddr > (uintptr_t)a->hm_ctx.mem_start &&
+                    paddr <= ((uintptr_t)a->hm_ctx.mem_start +
+                             (uintptr_t)a->hm_ctx.mem_size)) {
+                        hm_free(&a->hm_ctx, p);
+                        return;
+                }
+        }
+}

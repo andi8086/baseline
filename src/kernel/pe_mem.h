@@ -87,4 +87,8 @@ void kmem_arena_add(uint32_t base, uint32_t size);
 #define KERNEL_PAGE_TABLE_END (2UL << 22)
 #define KERNEL_STACK_END      ((2UL << 22) + (1UL << 20))
 
+
+void *kmalloc_high(uint32_t size);
+void kfree(void *p);
+
 #endif
