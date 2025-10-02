@@ -4,7 +4,7 @@
 .global spin_lock
 .global spin_unlock
 
-
+.align 16
 spin_lock:
         push %ebp
         push %edi
@@ -17,12 +17,14 @@ retry:  xchg [%edi], %eax
         pop  %edi
         pop  %ebp
         ret
+.align 8
 spinloop:
         pause
         cmp [%edi], %al
         jne retry
         jmp spinloop
 
+.align 16
 spin_unlock:
         push %ebp
         mov  %ebp, [%esp-8]        // trick to save a register
