@@ -14,7 +14,8 @@ CFLAGS = \
         -O0 \
         -fno-pic \
         -no-pie \
-        -Iuacpi/include
+        -Iuacpi/include \
+        -g
 
 
 objs_uACPI = \
@@ -45,8 +46,10 @@ objs_32 = \
         pe_mem.o \
         klib.o \
         kacpi.o \
+        video/gc.o \
         video/fb.o \
         video/vcon.o \
+        kdi.o \
         fonts/tsvga8x16.o \
         assets/logo.o \
         btrb_compact.o \
@@ -55,6 +58,8 @@ objs_32 = \
         smp_trampoline.o \
         pc_pit.o \
         kio.o \
+        kmutex.o \
+        ksched.o \
         $(objs_uACPI) \
         uacpi_osi.o
 

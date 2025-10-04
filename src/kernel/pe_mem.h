@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "heapm32.h"
 
-#pragma pack(1)
+#pragma pack(push, 1)
 typedef struct {
         uint16_t lim_15_0;
         uint16_t base_15_0;
@@ -13,6 +13,7 @@ typedef struct {
         uint8_t lim_19_16_flags;
         uint8_t base_31_24;
 } seg_desc_t;
+#pragma pack(pop)
 
 #define PAGE_SIZE 4096UL
 

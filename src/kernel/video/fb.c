@@ -1,4 +1,5 @@
 #include "fb.h"
+#include "gc.h"
 #include "../fonts/psf2.h"
 
 v_framebuffer_t vfb;
@@ -13,37 +14,97 @@ int video_init(uint32_t fb_addr, uint32_t w, uint32_t h, uint8_t bpp,
         vfb.width = w;
         vfb.height = h;
         vfb.bpp = bpp;
-        vfb.pitch = pitch >> 2;
+        vfb.pitch = pitch;
+
         return 0;
 }
 
 
-void video_putpixel(uint32_t x, uint32_t y, uint32_t color)
+void video_gc_put(gc_t *gc, int32_t x, int32_t y)
 {
-        *(vfb.addr + vfb.pitch * y + x) = color;
+        /* calculate the starting offset in the frame buffer */
+        uint32_t pixel_size = vfb.bpp >> 3;
+        uint32_t start_offset;
+
+        uint32_t vmax = vfb.height * vfb.pitch - 1;
+
+        uint32_t *vfb_max = (uint32_t *)((uintptr_t)vfb.addr + vmax);
+
+        start_offset = y * vfb.pitch + x * pixel_size;
+
+        uint32_t *dst = (uint32_t *)((uintptr_t)
+                vfb.addr + start_offset);
+
+        uint32_t *src = (uint32_t *)(uint32_t)gc->gmem;
+
+        int32_t gx = 0, gy = 0;
+
+        while (gy < gc->height && dst < vfb_max) {
+
+                gx = 0;
+
+                while (gx < gc->width && dst < vfb_max && x + gx < vfb.width) {
+                        *dst = *src;
+                        dst++;
+                        src++;
+                        gx++;
+                }
+
+                if (dst >= vfb_max) {
+                        break;
+                }
+
+                src += gc->width - gx;
+                dst += (vfb.pitch >> 2) - gx;
+                gy++;
+        }
 }
 
 
-void video_putchar(uint32_t x, uint32_t y, unsigned char c, uint32_t fc, uint32_t bc)
+void video_gc_put_block(gc_t *gc, int32_t x, int32_t y,
+                        int32_t gx, int32_t gy, uint32_t gw, uint32_t gh)
 {
-//        uint8_t *glyph_start = (uint8_t *)console_font + 32 + console_font->bpg * c;
-        uint8_t *glyph_start = (uint8_t *)console_font + 16 * (uint32_t)c;
+        if (gw > gc->width) {
+                gw = gc->width;
+        }
+        if (gh > gc->height) {
+                gh = gc->height;
+        }
 
-        uint8_t *gp = glyph_start;
+        /* calculate the starting offset in the frame buffer */
+        uint32_t pixel_size = vfb.bpp >> 3;
+        uint32_t dest_offset, src_offset;
 
-        for (uint32_t py = y; py < y + 16; py++) {
-                uint32_t px = x;
+        uint32_t vmax = vfb.height * vfb.pitch - 1;
+        uint32_t *vfb_max = (uint32_t *)((uintptr_t)vfb.addr + vmax);
 
-                uint8_t mask = 0x80;
-                for (int i = 0; i < 8; i++) {
-                        if (*gp & mask) {
-                                video_putpixel(px, py, fc);
-                        } else {
-                                video_putpixel(px, py, bc);
-                        }
-                        px++;
-                        mask >>= 1;
+        dest_offset = y * vfb.pitch + x * pixel_size;
+        uint32_t *dst = (uint32_t *)((uintptr_t)vfb.addr + dest_offset);
+
+        src_offset = gy * gc->vpitch + gx * pixel_size;
+        uint32_t *src = (uint32_t *)((uintptr_t)gc->gmem + src_offset);
+
+        uint32_t pixel_count = 0;
+
+        while (gh-- && dst < vfb_max) {
+
+                gx = 0;
+                pixel_count = 0;
+
+                while (pixel_count < gw && dst < vfb_max &&
+                       x + pixel_count < vfb.width) {
+
+                        *dst = *src;
+                        dst++;
+                        src++;
+                        pixel_count++;
                 }
-                gp++;
+
+                if (dst >= vfb_max) {
+                        break;
+                }
+
+                src += (gc->vpitch >> 2) - pixel_count;
+                dst += (vfb.pitch >> 2) - pixel_count;
         }
 }

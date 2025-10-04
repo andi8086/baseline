@@ -150,7 +150,7 @@ extern char _binary_logo_data_start;
 extern char _binary_logo_data_end;
 
 vcon_t boot_console;
-        
+
 uint32_t *kesp = (uint32_t *)KERNEL_STACK_END;
 rsdp_header_t *rsdp; /* also needed for uACPI */
 
@@ -211,19 +211,90 @@ void kmain(uint32_t magic, uint32_t addr)
                 while (1);
         }
 
-//        console_font = (psf2_header_t *)&_binary_pho437_8x16_psfu_start;
-//        console_font = (psf2_header_t *)&_binary_ATIEgaWonder800p_8x16_bin_start;
         console_font = (psf2_header_t *)&_binary_TSVGA_ET4000_8x16_bin_start;
         uint32_t *logo = (uint32_t *)&_binary_logo_data_start;
         uint32_t *logo_end = (uint32_t *)&_binary_logo_data_end;
 
-        for (int y = 0; y < vfb.height; y++) {
+        rsdp = kacpi_find_rsdp();
+
+        if (rsdp) {
+                rsdt_t *rsdt = (rsdt_t *)(uintptr_t)(rsdp->rsdt_addr);
+                int entries = (rsdt->h.length - sizeof(rsdt->h)) / 4;
+                void *madt = kacpi_find_madt(rsdp);
+                if (madt) {
+                        kacpi_madt_init(madt);
+                }
+        }
+
+#define MBI_TAG_MEMORY_MAP 6
+        typedef struct {
+                uint32_t type;
+                uint32_t size;
+                uint32_t entry_size;
+                uint32_t entry_version;
+        } mbi_mem_map_t;
+
+        typedef struct {
+                uint64_t base_addr;
+                uint64_t len;
+                uint32_t type;
+                uint32_t res;
+        } mbi_mem_map_entry_t;
+
+        mbi_mem_map_t *mem_map;
+        mbi_mem_map_entry_t *mem_map_e;
+
+        for (tag = mbi_tags; tag->type != 0;
+             tag = (mb_tag_t *)((uint8_t *)tag +
+                   ((tag->size + 7) & ~7))) {
+                switch (tag->type) {
+                case MBI_TAG_MEMORY_MAP:
+                        mem_map = (mbi_mem_map_t *)tag;
+                        mem_map_e = (mbi_mem_map_entry_t *)
+                                ((uint8_t *)tag + sizeof(mbi_mem_map_t));
+                        while ((uint8_t *)mem_map_e <
+                               (uint8_t *)mem_map + mem_map->size) {
+
+                                switch (mem_map_e->type) {
+                                case 1: kmem_arena_add(mem_map_e->base_addr,
+                                                       mem_map_e->len);
+                                        break;
+                                case 3: // ACPI info
+                                        break;
+                                case 4: // preserved
+                                        break;
+                                case 5: // defective
+                                        break;
+                                default: // reserved
+                                        break;
+
+                                }
+
+                                mem_map_e = (mbi_mem_map_entry_t *)
+                                        ((uint8_t *)mem_map_e + mem_map->entry_size);
+                        }
+
+                        break;
+                }
+        }
+
+        page_table_init();
+
+        gc_t *gc = gc_create(640, 480);
+        vcon_init(&boot_console, gc);
+
+        gc_clear(gc, 0x0000FF);
+        vcon_printf(&boot_console, "Kernel 0.01\n");
+        gc_update_fb(gc, 64, 64);
+
+
+/*        for (int y = 0; y < vfb.height; y++) {
                 for (int x = 0; x < vfb.width; x++) {
                         video_putpixel(x, y, 0x000000);
                 }
         }
-
-        int y = 127;
+*/
+/*        int y = 127;
         int logo_width = 844;
         int xleft = 640 - logo_width/2, x = xleft;
 
@@ -244,100 +315,11 @@ void kmain(uint32_t magic, uint32_t addr)
         vcon_init(&boot_console,
                   (uint32_t)(vfb.addr + 384*1280),
                   1280, 640);
-//        vcon_set_fb(&boot_console, &vfb);
-
-        vcon_puts(&boot_console, "Booting...\n");
         vcon_puts(&boot_console, "Kernel v0.01\n");
-
-/*
-        for (uint32_t i = 0; i < 256; i++) {
-                video_putchar((i * 8) % 640, ((i * 8)/640) * 16, (char)i,
-                              0xFFFF00, 0x000000);
-        }
 */
-        rsdp = kacpi_find_rsdp();
-        vcon_printf(&boot_console, "RSDT at %p\n", rsdp->rsdt_addr);
-
-        if (rsdp) {
-                rsdt_t *rsdt = (rsdt_t *)(uintptr_t)(rsdp->rsdt_addr);
-                int entries = (rsdt->h.length - sizeof(rsdt->h)) / 4;
-                vcon_printf(&boot_console, "RSDT has %p entries\n", (uint32_t)entries);
-                void *madt = kacpi_find_madt(rsdp);
-                vcon_printf(&boot_console, "MADT at %p\n", (uint32_t)madt);
-                if (madt) {
-                        kacpi_madt_init(madt);
-                }
-        }
-
-        vcon_printf(&boot_console, "Frame buffer at %p\n", (uint32_t)vfb.addr);
-
-#define MBI_TAG_MEMORY_MAP 6
-        typedef struct {
-                uint32_t type;
-                uint32_t size;
-                uint32_t entry_size;
-                uint32_t entry_version;
-        } mbi_mem_map_t;
-
-        typedef struct {
-                uint64_t base_addr;
-                uint64_t len;
-                uint32_t type;
-                uint32_t res;
-        } mbi_mem_map_entry_t;
-
-        mbi_mem_map_t *mem_map;
-        mbi_mem_map_entry_t *mem_map_e;
-
-
-        for (tag = mbi_tags; tag->type != 0;
-             tag = (mb_tag_t *)((uint8_t *)tag +
-                   ((tag->size + 7) & ~7))) {
-                switch (tag->type) {
-                case MBI_TAG_MEMORY_MAP:
-                        mem_map = (mbi_mem_map_t *)tag;
-                        mem_map_e = (mbi_mem_map_entry_t *)
-                                ((uint8_t *)tag + sizeof(mbi_mem_map_t));
-                        vcon_printf(&boot_console, "Memory Map:\n");
-                        while ((uint8_t *)mem_map_e <
-                               (uint8_t *)mem_map + mem_map->size) {
-
-                                vcon_printf(&boot_console, "base %p len %p ",
-                                        (uint32_t)mem_map_e->base_addr,
-                                        (uint32_t)mem_map_e->len);
-
-                                switch (mem_map_e->type) {
-                                case 1: vcon_printf(&boot_console, "available");
-                                        kmem_arena_add(mem_map_e->base_addr,
-                                                       mem_map_e->len);
-                                        break;
-                                case 3: vcon_printf(&boot_console, "ACPI info");
-                                        break;
-                                case 4: vcon_printf(&boot_console, "preserved");
-                                        break;
-                                case 5: vcon_printf(&boot_console, "defective");
-                                        break;
-                                default: vcon_printf(&boot_console, "reserved");
-                                        break;
-
-                                }
-                                vcon_printf(&boot_console, "\n");
-
-
-                                mem_map_e = (mbi_mem_map_entry_t *)
-                                        ((uint8_t *)mem_map_e + mem_map->entry_size);
-                        }
-
-                        break;
-                }
-        }
-        
-        page_table_init();
-
-
         uint8_t smp_cpus = cpu_wake_all();
 
-        vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
+//        vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
 
         while (1) {};
 }

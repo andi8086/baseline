@@ -4,18 +4,12 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-void vcon_set_fb(vcon_t *vcon, v_framebuffer_t *fb)
-{
-        vcon->fb = fb;
-}
 
-
-void vcon_init(vcon_t *vcon, uint32_t addr, uint32_t width, uint32_t height)
+void vcon_init(vcon_t *vcon, gc_t *gc)
 {
-        vcon->start_addr = addr;
-        vcon->width = width;
-        vcon->height = height;
-        vcon->pitch = width; // #dwords per pixel line (RGB32)
+        vcon->gc = gc;
+        vcon->rows = gc->width / 16;
+        vcon->cols = gc->width / 8;
 
         vcon->row = 0; /* relative */
         vcon->col = 0;
@@ -40,7 +34,6 @@ static void vcon_newline(vcon_t *vcon)
 
 void vcon_putc(vcon_t *vcon, unsigned char c)
 {
-
         if (c == '\n') {
                 vcon_newline(vcon);
                 return;
@@ -51,11 +44,18 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
                 return;
         }
 
-
         uint32_t col, row;
         extern psf2_header_t *console_font;
         col = vcon->col;
         row = vcon->row;
+
+        /* store minimum changed x and y into invalidate coords */
+        if (vcon->gc->mincx < 0 || col * 8 < vcon->gc->mincx) {
+                vcon->gc->mincx = col * 8;
+        }
+        if (vcon->gc->mincy < 0 || row * 16 < vcon->gc->mincy) {
+                vcon->gc->mincy = row * 16;
+        }
 
         uint8_t *glyph_start = (uint8_t *)console_font + 16 * (uint32_t)c;
 
@@ -64,8 +64,8 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
         for (uint32_t py = row * 16; py < (row + 1) * 16; py++) {
 
                 uint32_t px = col * 8;
-                uint32_t *paddr = (uint32_t *)vcon->start_addr;
-                paddr += py * vcon->pitch + px;
+                uint32_t *paddr = (uint32_t *)vcon->gc->gmem;
+                paddr += py * (vcon->gc->vpitch >> 2) + px;
 
                 uint8_t mask = 0x80;
                 for (int i = 0; i < 8; i++) {
@@ -78,10 +78,21 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
                 }
                 gp++;
         }
+
         vcon->col++;
-        if (vcon->col > vcon->pitch / 8) {
+        if (vcon->col > vcon->cols) {
                 vcon->col = 0;
                 vcon->row++;
+        }
+
+        if (vcon->col == 0) {
+                vcon->gc->maxcx = vcon->cols * 8 - 1;
+        } else if (vcon->col * 8 - 1 > vcon->gc->maxcx) {
+                vcon->gc->maxcx = vcon->col * 8 - 1;
+        }
+
+        if (vcon->row * 16 - 1 > vcon->gc->maxcy) {
+                vcon->gc->maxcy = vcon->row * 16 - 1;
         }
 }
 

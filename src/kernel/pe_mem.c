@@ -1,7 +1,5 @@
 #include "pe_mem.h"
 
-#include "video/fb.h"
-#include "video/vcon.h"
 #include "ksmp_apic.h"
 
 void init_seg_desc(seg_desc_t *seg,
@@ -80,18 +78,20 @@ void kmem_arena_add(uint32_t base, uint32_t size)
         }
 
         extern char mb_header_start;
+
+        uint32_t a_start = base;
+        uint32_t a_end = base + size;
+        uint32_t k_end = KERNEL_STACK_END;
+        uint32_t k_start = (uintptr_t)&mb_header_start;
+
         /* check if chunk includes the kernel */
-        if (base < (uintptr_t)&mb_header_start &&
-            base + size > KERNEL_STACK_END) {
-                if (size <= KERNEL_STACK_END - base) {
+        if (a_start <= k_start && a_end > k_end) {
+                if (size <= k_end - a_start) {
                         return;
                 }
-                size = size - (KERNEL_STACK_END - base);
-                base = KERNEL_STACK_END;
+                size = size - (k_end - a_start);
+                base = k_end;
         }
-
-        extern vcon_t boot_console;
-        vcon_printf(&boot_console, "\nkmem_arena: added arena from %p to %p", base, base + size);
 
         kmem_arena_t *kmt = &kmem_arenas[kmem_n_arenas];
 

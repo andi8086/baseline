@@ -4,12 +4,8 @@
 
 #include "klib.h"
 #include "kacpi.h"
-#include "video/vcon.h"
 
 #include "ksmp_apic.h"
-
-
-extern vcon_t boot_console;
 
 
 void *kacpi_find_rsdp(void)
@@ -61,12 +57,7 @@ void kacpi_madt_init(void *madt)
 
         uint32_t size = m->h.length;
 
-        if (m->flags & APIC_PCAT_COMPAT) {
-                vcon_printf(&boot_console, "PC/AT dual 8529 support\n");
-        }
-
         smp_lapic_addr = m->lapic_addr;
-        vcon_printf(&boot_console, "LAPIC address: %p\n", m->lapic_addr);
         apic_header_t *apic = (apic_header_t *)((uint8_t *)m + sizeof(madt_t));
 
         while ((uint8_t *)apic < (uint8_t *)m + size) {
@@ -79,31 +70,29 @@ void kacpi_madt_init(void *madt)
                                         cpu_lapic->apic_id);
                         }
 
-                        vcon_printf(&boot_console, "CPU found: UID %p, APIC ID %p\n",
-                                    cpu_lapic->acpi_cpu_id, cpu_lapic->apic_id);
                 } else if (apic->type == 1) {
                         io_apic_t *io_apic = (io_apic_t *)apic;
-                        vcon_printf(&boot_console, "I/O APIC at %p, GSI base = %p\n",
-                                    io_apic->ioapic_addr, io_apic->gsi_base);
+//                        vcon_printf(&boot_console, "I/O APIC at %p, GSI base = %p\n",
+//                                    io_apic->ioapic_addr, io_apic->gsi_base);
                 } else if (apic->type == 2) {
                         io_apic_int_override_t *into = (io_apic_int_override_t *)apic;
-                        vcon_printf(&boot_console, "GSI %p, BUS %p, IRQ %p (",
-                                    into->gsi, into->bus, into->irq);
+//                        vcon_printf(&boot_console, "GSI %p, BUS %p, IRQ %p (",
+//                                    into->gsi, into->bus, into->irq);
                         if (into->flags & APIC_INT_FLAGS_LOW_ACTIVE) {
-                                vcon_printf(&boot_console, "Low active, ");
+//                                vcon_printf(&boot_console, "Low active, ");
                         } else {
-                                vcon_printf(&boot_console, "High active, ");
+//                                vcon_printf(&boot_console, "High active, ");
                         }
                         if (into->flags & APIC_INT_FLAGS_LEVEL_TRIGGERED) {
-                                vcon_printf(&boot_console, "Level triggered");
+//                                vcon_printf(&boot_console, "Level triggered");
                         } else {
-                                vcon_printf(&boot_console, "Edge triggered");
+//                                vcon_printf(&boot_console, "Edge triggered");
                         }
-                        vcon_printf(&boot_console, ")\n");
+//                        vcon_printf(&boot_console, ")\n");
                 }
 
                 apic = (apic_header_t *)((uint8_t *)apic + apic->length);
         }
 
-        vcon_printf(&boot_console, "%p CPUs registered\n", cpu_get_count());
+//        vcon_printf(&boot_console, "%p CPUs registered\n", cpu_get_count());
 }
