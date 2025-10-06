@@ -3,6 +3,7 @@ all: krnl32.elf
 CFLAGS = \
         -Wl,--no-dynamic-linker \
         -ffreestanding \
+        -mno-red-zone \
         -nostartfiles \
         -nodefaultlibs \
         -nostdlib \
@@ -58,16 +59,23 @@ objs_32 = \
         smp_trampoline.o \
         pc_pit.o \
         kio.o \
-        kmutex.o \
-        ksched.o \
+        kspinlock.o \
+        pic8259.o \
+        isr.o \
+        kint.o \
         $(objs_uACPI) \
         uacpi_osi.o
 
 #       fonts/ega8x16.o
 
-smp_trampoline.o: smp_trampoline.S
+
+kint.o: kint.c
+	$(info CC $@)
+	@gcc $(CFLAGS) -mgeneral-regs-only -c $< -o $@
+
+%.o: %.S
 	$(info AS $@)
-	@gcc $(CFLAGS) -c -Wa,-aslh=${@:.o=.s} $< -o $@
+	@gcc $(CFLAGS) -c $< -o $@
 
 %.o: %.c
 	$(info CC $@)

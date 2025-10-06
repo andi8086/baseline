@@ -81,7 +81,7 @@ struct multiboot_header {
 #include "video/vcon.h"
 #include "fonts/psf2.h"
 #include "ksmp_apic.h"
-
+#include "kint.h"
 
 extern psf2_header_t *console_font;
 // extern char _binary_ATIEgaWonder800p_8x16_bin_start;
@@ -320,6 +320,7 @@ void kmain(uint32_t magic, uint32_t addr)
         uint8_t smp_cpus = cpu_wake_all();
 
 //        vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
+        idt_init();
 
         while (1) {};
 }
