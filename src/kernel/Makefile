@@ -63,6 +63,8 @@ objs_32 = \
         pic8259.o \
         isr.o \
         kint.o \
+        ioapic.o \
+        lapic.o \
         $(objs_uACPI) \
         uacpi_osi.o
 

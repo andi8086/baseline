@@ -3,6 +3,7 @@
 #include "pc_pit.h"
 #include "video/vcon.h"
 
+
 uint32_t smp_lapic_addr;
 
 /* We do not support more than 256 CPUs */

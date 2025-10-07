@@ -4,7 +4,7 @@
 
 #include "klib.h"
 #include "kacpi.h"
-
+#include "ioapic.h"
 #include "ksmp_apic.h"
 
 
@@ -72,6 +72,8 @@ void kacpi_madt_init(void *madt)
 
                 } else if (apic->type == 1) {
                         io_apic_t *io_apic = (io_apic_t *)apic;
+                        ioapic_register(io_apic->ioapic_addr,
+                                        io_apic->gsi_base);
 //                        vcon_printf(&boot_console, "I/O APIC at %p, GSI base = %p\n",
 //                                    io_apic->ioapic_addr, io_apic->gsi_base);
                 } else if (apic->type == 2) {

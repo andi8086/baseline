@@ -82,6 +82,9 @@ struct multiboot_header {
 #include "fonts/psf2.h"
 #include "ksmp_apic.h"
 #include "kint.h"
+#include "pic8259.h"
+#include "ioapic.h"
+
 
 extern psf2_header_t *console_font;
 // extern char _binary_ATIEgaWonder800p_8x16_bin_start;
@@ -321,6 +324,22 @@ void kmain(uint32_t magic, uint32_t addr)
 
 //        vcon_printf(&boot_console, "%p CPUs running...\n", smp_cpus + 1);
         idt_init();
+
+        /* first we move the IRQ handlers out of the way to not
+           collide with CPU exception vectors */
+        pic_init(0x20, 0x28);
+        /* we disable all IRQs in the PIC because we want to use IOAPIC */
+        pic_disable();
+
+        /* configure IOAPIC to route IRQs 0-15 to the bootstrap CPU */
+        for (int i = 0; i < 15; i++) {
+                ioapic_irq_config(i, 0x20 + i, IOAPIC_IRQ_FIXED,
+                                  IOAPIC_DEST_CPU_PHYS, IOAPIC_IRQ_ACTIVE_LOW,
+                                  IOAPIC_TRIGGER_LEVEL, 0, 0);
+        }
+
+        /* enable interrupts for testing */
+        asm("sti\n");
 
         while (1) {};
 }

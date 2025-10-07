@@ -13,6 +13,7 @@ ap_cpu_start:
         mov %al, 1
         mov %di, 0xFFE
         mov [%di], al
+        sti
 1:      hlt
         jmp 1b
 

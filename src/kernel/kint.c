@@ -96,7 +96,7 @@ void idt_init(void)
         asm (
                 "mov eax, offset idtptr\n"
                 "lidt [eax]\n"
-                "mov eax, -1\n"
+               /* "mov eax, -1\n"
                 "mov ebx, 0xAAAAAAAA\n"
                 "mov ecx, 0xBBBBBBBB\n"
                 "mov edx, 0xCCCCCCCC\n"
@@ -105,6 +105,6 @@ void idt_init(void)
                 "mov ax, 0x40\n"
                 "sub ax, 0x40\n"
                 "mov fs, bx\n" // provoke exception
-                "mov byte ptr fs:[0], al\n"
+                "mov byte ptr fs:[0], al\n" */
         );
 }
