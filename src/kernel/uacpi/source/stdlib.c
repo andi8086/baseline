@@ -511,11 +511,13 @@ uacpi_i32 uacpi_vsnprintf(
     fb_state.capacity = capacity;
     fb_state.bytes_written = 0;
 
+    struct fmt_spec fm;
+
     while (*fmt) {
-        struct fmt_spec fm = {
-            .pad_char = ' ',
-            .base = 10,
-        };
+        uacpi_memset(&fm, 0, sizeof(fm));
+        fm.pad_char = ' ';
+        fm.base = 10;
+
         next_conversion = find_next_conversion(fmt, &next_offset);
 
         if (next_offset)

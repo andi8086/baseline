@@ -84,6 +84,8 @@ struct multiboot_header {
 #include "kint.h"
 #include "pic8259.h"
 #include "ioapic.h"
+#include "pci.h"
+#include <uacpi/uacpi.h>
 
 
 extern psf2_header_t *console_font;
@@ -337,6 +339,23 @@ void kmain(uint32_t magic, uint32_t addr)
                                   IOAPIC_DEST_CPU_PHYS, IOAPIC_IRQ_ACTIVE_LOW,
                                   IOAPIC_TRIGGER_LEVEL, 0, 0);
         }
+
+        uacpi_status ret = uacpi_initialize(0);
+        if (uacpi_unlikely_error(ret)) {
+                vcon_printf(&boot_console, uacpi_status_to_string(ret));
+                gc_update_fb(boot_console.gc, 64, 64);
+        }
+
+
+        ret = uacpi_namespace_load();
+        if (uacpi_unlikely_error(ret)) {
+                vcon_printf(&boot_console, uacpi_status_to_string(ret));
+                gc_update_fb(boot_console.gc, 64, 64);
+        }
+
+        uacpi_namespace_initialize();
+//        uacpi_finalize_gpe_initialization();
+        pci_init();
 
         /* enable interrupts for testing */
         asm("sti\n");

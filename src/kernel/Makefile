@@ -60,11 +60,13 @@ objs_32 = \
         pc_pit.o \
         kio.o \
         kspinlock.o \
+        kmutex.o \
         pic8259.o \
         isr.o \
         kint.o \
         ioapic.o \
         lapic.o \
+        pci.o \
         $(objs_uACPI) \
         uacpi_osi.o
 

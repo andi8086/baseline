@@ -938,7 +938,8 @@ uacpi_status uacpi_table_match(
 )
 {
     uacpi_status ret;
-    struct table_search_ctx ctx = { 0 };
+    struct table_search_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
 
     ctx.match_cb = cb;
     ctx.search_type = SEARCH_TYPE_MATCH;
@@ -959,7 +960,8 @@ static uacpi_status find_table(
 )
 {
     uacpi_status ret;
-    struct table_search_ctx ctx = { 0 };
+    struct table_search_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
 
     ctx.id = id;
     ctx.out_table = out_table;
@@ -977,7 +979,9 @@ uacpi_status uacpi_table_find_by_signature(
     const uacpi_char *signature_string, struct uacpi_table *out_table
 )
 {
-    struct uacpi_table_identifiers id = { 0 };
+    struct uacpi_table_identifiers id;
+
+    uacpi_memset(&id, 0, sizeof(id));
 
     id.signature.text[0] = signature_string[0];
     id.signature.text[1] = signature_string[1];
@@ -993,7 +997,9 @@ uacpi_status uacpi_table_find_next_with_same_signature(
     uacpi_table *in_out_table
 )
 {
-    struct uacpi_table_identifiers id = { 0 };
+    struct uacpi_table_identifiers id;
+
+    uacpi_memset(&id, 0, sizeof(id));
 
     ENSURE_TABLES_ONLINE();
 
@@ -1114,12 +1120,13 @@ uacpi_status uacpi_table_load_with_cause(
 )
 {
     uacpi_status ret;
-    struct table_ctl_request req = {
-        .type = TABLE_CTL_SET_FLAGS | TABLE_CTL_VALIDATE_CLEAR_FLAGS |
-                TABLE_CTL_GET,
-        .set = UACPI_TABLE_LOADED,
-        .expect_clear = UACPI_TABLE_LOADED,
-    };
+    struct table_ctl_request req;
+
+    uacpi_memset(&req, 0, sizeof(req));
+    req.type = TABLE_CTL_SET_FLAGS | TABLE_CTL_VALIDATE_CLEAR_FLAGS |
+               TABLE_CTL_GET;
+    req.set = UACPI_TABLE_LOADED;
+    req.expect_clear = UACPI_TABLE_LOADED;
 
     ret = table_ctl(idx, &req);
     if (uacpi_unlikely_error(ret))
@@ -1139,9 +1146,11 @@ uacpi_status uacpi_table_load(uacpi_size idx)
 
 void uacpi_table_mark_as_loaded(uacpi_size idx)
 {
-    struct table_ctl_request req = {
-        .type = TABLE_CTL_SET_FLAGS, .set = UACPI_TABLE_LOADED
-    };
+    struct table_ctl_request req;
+
+    uacpi_memset(&req, 0, sizeof(req));
+    req.type = TABLE_CTL_SET_FLAGS;
+    req.set = UACPI_TABLE_LOADED;
 
     table_ctl(idx, &req);
 }
@@ -1149,18 +1158,18 @@ void uacpi_table_mark_as_loaded(uacpi_size idx)
 
 uacpi_status uacpi_table_ref(uacpi_table *tbl)
 {
-    struct table_ctl_request req = {
-        .type = TABLE_CTL_GET
-    };
+    struct table_ctl_request req;
+    uacpi_memset(&req, 0, sizeof(req));
+    req.type = TABLE_CTL_GET;
 
     return table_ctl(tbl->index, &req);
 }
 
 uacpi_status uacpi_table_unref(uacpi_table *tbl)
 {
-    struct table_ctl_request req = {
-        .type = TABLE_CTL_PUT
-    };
+    struct table_ctl_request req;
+    uacpi_memset(&req, 0, sizeof(req));
+    req.type = TABLE_CTL_PUT;
 
     return table_ctl(tbl->index, &req);
 }

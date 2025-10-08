@@ -451,7 +451,9 @@ static void unref_object_no_recurse(uacpi_object *obj, struct free_queue *queue)
 
 static void free_package(uacpi_handle handle)
 {
-    struct free_queue queue = { 0 };
+    struct free_queue queue;
+
+    uacpi_memset(&queue, 0, sizeof(queue));
     uacpi_package *pkg = handle;
     uacpi_object *obj;
     uacpi_size i;
@@ -555,6 +557,9 @@ void uacpi_address_space_handler_unref(uacpi_address_space_handler *handler)
 static void free_op_region(uacpi_handle handle)
 {
     uacpi_operation_region *op_region = handle;
+    struct uacpi_table table;
+
+    uacpi_memset(&table, 0, sizeof(table));
 
     if (uacpi_unlikely(op_region->handler != UACPI_NULL)) {
         uacpi_warn(
@@ -567,15 +572,12 @@ static void free_op_region(uacpi_handle handle)
     case UACPI_ADDRESS_SPACE_PCC:
         uacpi_free(op_region->internal_buffer, op_region->length);
         break;
-    case UACPI_ADDRESS_SPACE_TABLE_DATA: {
-        struct uacpi_table table = { 0 };
-
+    case UACPI_ADDRESS_SPACE_TABLE_DATA:
         table.index = op_region->table_idx;
         uacpi_table_unref(
             &table
         );
         break;
-    }
     default:
         break;
     }
@@ -879,7 +881,9 @@ static uacpi_status deep_copy_package_no_recurse(
 static uacpi_status deep_copy_package(uacpi_object *dst, uacpi_object *src)
 {
     uacpi_status ret = UACPI_STATUS_OK;
-    struct pkg_copy_reqs reqs = { 0 };
+    struct pkg_copy_reqs reqs;
+
+    uacpi_memset(&reqs, 0, sizeof(reqs));
 
     pkg_copy_reqs_push(&reqs, dst, src->package);
 
@@ -1027,7 +1031,9 @@ uacpi_status uacpi_object_get_integer(uacpi_object *obj, uacpi_u64 *out)
 
 uacpi_status uacpi_object_assign_integer(uacpi_object *obj, uacpi_u64 value)
 {
-    uacpi_object object = { 0 };
+    uacpi_object object;
+
+    uacpi_memset(&object, 0, sizeof(object));
 
     ENSURE_VALID_USER_OBJ(obj);
 
@@ -1106,7 +1112,9 @@ static uacpi_status uacpi_object_do_assign_buffer(
 )
 {
     uacpi_status ret;
-    uacpi_object tmp_obj = { 0 };
+    uacpi_object tmp_obj;
+
+    uacpi_memset(&tmp_obj, 0, sizeof(tmp_obj));
     uacpi_size dst_buf_size = in.length;
 
     tmp_obj.type = type;
@@ -1224,7 +1232,9 @@ uacpi_object *uacpi_object_create_buffer(uacpi_data_view view)
 
 uacpi_object *uacpi_object_create_cstring(const uacpi_char *str)
 {
-    uacpi_data_view data_view = { 0 };
+    uacpi_data_view data_view;
+
+    uacpi_memset(&data_view, 0, sizeof(data_view));
 
     data_view.const_text = str;
     data_view.length = uacpi_strlen(str) + 1;
@@ -1263,7 +1273,9 @@ uacpi_status uacpi_object_assign_reference(
 )
 {
     uacpi_status ret;
-    uacpi_object object = { 0 };
+    uacpi_object object;
+
+    uacpi_memset(&object, 0, sizeof(object));
 
     ENSURE_VALID_USER_OBJ(obj);
     ENSURE_VALID_USER_OBJ(child);

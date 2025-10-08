@@ -1984,7 +1984,8 @@ uacpi_status uacpi_native_resources_from_aml(
 )
 {
     uacpi_status ret;
-    struct resource_conversion_ctx ctx = { 0 };
+    struct resource_conversion_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
     uacpi_resources *resources;
 
     ret = uacpi_for_each_aml_resource(
@@ -2026,9 +2027,10 @@ uacpi_status uacpi_get_resource_from_buffer(
 )
 {
     uacpi_status ret;
-    struct resource_conversion_ctx ctx = {
-        .just_one = UACPI_TRUE,
-    };
+    struct resource_conversion_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
+    ctx.just_one = UACPI_TRUE;
+
     uacpi_resource *resource;
 
     ret = uacpi_for_each_aml_resource(
@@ -2449,7 +2451,8 @@ static uacpi_status native_resources_to_aml(
 )
 {
     uacpi_status ret;
-    struct resource_conversion_ctx ctx = { 0 };
+    struct resource_conversion_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
 
     ctx.buf = aml_buffer;
 
@@ -2499,7 +2502,8 @@ uacpi_status uacpi_native_resources_to_aml(
     uacpi_status ret;
     uacpi_object *obj;
     void *buffer;
-    struct resource_conversion_ctx ctx = { 0 };
+    struct resource_conversion_ctx ctx;
+    uacpi_memset(&ctx, 0, sizeof(ctx));
 
     ret = uacpi_for_each_resource(
         resources, accumulate_aml_buffer_size, &ctx

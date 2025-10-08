@@ -87,14 +87,14 @@ UACPI_BUILD_BUG_ON_WITH_MSG(
  * compiling uACPI may theoretically generate implicit dependencies on them
  * even if this option is defined.
  */
-// #define UACPI_USE_BUILTIN_STRING
+#define UACPI_USE_BUILTIN_STRING
 
 /*
  * Turns uacpi_phys_addr and uacpi_io_addr into a 32-bit type, and adds extra
  * code for address truncation. Needed for e.g. i686 platforms without PAE
  * support.
  */
-// #define UACPI_PHYS_ADDR_IS_32BITS
+#define UACPI_PHYS_ADDR_IS_32BITS
 
 /*
  * Switches uACPI into reduced-hardware-only mode. Strips all full-hardware

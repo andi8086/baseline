@@ -129,6 +129,8 @@ void *kmalloc_high(uint32_t size)
 
 void kfree(void *p)
 {
+        /* FIXME */
+        return;
         uintptr_t paddr = (uintptr_t)p;
         /* we must find the pointers heap context */
         for (int i = 0; i < kmem_n_arenas; i++) {

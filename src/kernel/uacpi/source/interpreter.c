@@ -1290,7 +1290,8 @@ static uacpi_status do_load_table(
     enum uacpi_table_load_cause cause
 )
 {
-    struct uacpi_control_method method = { 0 };
+    struct uacpi_control_method method;
+    uacpi_memset(&method, 0, sizeof(method));
     uacpi_status ret;
 
     ret = prepare_table_load(tbl, cause, &method);
@@ -1326,7 +1327,8 @@ static uacpi_status handle_load_table(struct execution_context *ctx)
      */
     if (item_array_size(items) == 12) {
         uacpi_size idx;
-        struct uacpi_table tmp_table = { 0 };
+        struct uacpi_table tmp_table;
+        uacpi_memset(&tmp_table, 0, sizeof(tmp_table));
 
         idx = item_array_at(items, 2)->immediate;
         tmp_table.index = idx;
@@ -1447,7 +1449,8 @@ static uacpi_status handle_load(struct execution_context *ctx)
      */
     if (item_array_size(items) == 6) {
         uacpi_size idx;
-        uacpi_table tmp_table = { 0 };
+        uacpi_table tmp_table;
+        uacpi_memset(&tmp_table, 0, sizeof(tmp_table));
 
         idx = item_array_at(items, 2)->immediate;
         tmp_table.index = idx;
@@ -1662,7 +1665,8 @@ static uacpi_status handle_create_field(struct execution_context *ctx)
     struct op_context *op_ctx = ctx->cur_op_ctx;
     uacpi_namespace_node *node;
     uacpi_object *obj, *connection_obj = UACPI_NULL;
-    struct field_specific_data field_data = { 0 };
+    struct field_specific_data field_data;
+    uacpi_memset(&field_data, 0, sizeof(field_data));
     uacpi_size i = 1, bit_offset = 0;
     uacpi_u32 length, pin_offset = 0;
 
@@ -3005,7 +3009,8 @@ static uacpi_status handle_concatenate(struct execution_context *ctx)
     }
     case UACPI_OBJECT_BUFFER: {
         uacpi_buffer *arg0_buf = arg0->buffer;
-        uacpi_data_view arg1_buf = { 0 };
+        uacpi_data_view arg1_buf;
+        uacpi_memset(&arg1_buf, 0, sizeof(arg1_buf));
 
         get_object_storage(arg1, &arg1_buf, UACPI_TRUE);
         buf_size = arg0_buf->size + arg1_buf.length;
@@ -3807,7 +3812,8 @@ static uacpi_status handle_notify(struct execution_context *ctx)
 static uacpi_status handle_firmware_request(struct execution_context *ctx)
 {
     struct op_context *op_ctx = ctx->cur_op_ctx;
-    uacpi_firmware_request req = { 0 };
+    uacpi_firmware_request req;
+    uacpi_memset(&req, 0, sizeof(req));
 
     switch (op_ctx->op->code) {
     case UACPI_AML_OP_BreakPointOp:
@@ -3899,7 +3905,8 @@ static uacpi_status handle_field_read(struct execution_context *ctx)
     uacpi_object *src_obj, *dst_obj;
     uacpi_size dst_size;
     void *dst = UACPI_NULL;
-    uacpi_data_view wtr_response = { 0 };
+    uacpi_data_view wtr_response;
+    uacpi_memset(&wtr_response, 0, sizeof(wtr_response));
 
     node = item_array_at(&op_ctx->items, 0)->node;
     src_obj = uacpi_namespace_node_get_object(node);
@@ -4340,7 +4347,8 @@ static uacpi_status handle_copy_object_or_store(struct execution_context *ctx)
 
     if (op_ctx->op->code == UACPI_AML_OP_StoreOp) {
         uacpi_status ret;
-        uacpi_data_view wtr_response = { 0 };
+        uacpi_data_view wtr_response;
+        uacpi_memset(&wtr_response, 0, sizeof(wtr_response));
 
         ret = store_to_target(dst, src, &wtr_response);
         if (uacpi_unlikely_error(ret))

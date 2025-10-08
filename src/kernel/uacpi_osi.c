@@ -4,6 +4,10 @@
 #include "pe_mem.h"
 #include "klib.h"
 #include "kio.h"
+#include "kmutex.h"
+
+#include "video/vcon.h"
+#include "video/gc.h"
 
 /* Returns the physical address of the RSDP structure */
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address)
@@ -127,53 +131,64 @@ uacpi_status uacpi_kernel_io_write32(
 }
 
 
-
-
-
-
-
-
-
-
 uacpi_handle uacpi_kernel_create_mutex(void)
 {
-
+        return (uacpi_handle)kmutex_create();
 }
 
 
-void uacpi_kernel_free_mutex(uacpi_handle)
+void uacpi_kernel_free_mutex(uacpi_handle m)
 {
-
+        kmutex_free((kmutex_t *)m);
 }
 
 
-uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle, uacpi_u16)
+uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle m, uacpi_u16 timeout)
 {
+        switch (timeout) {
+        case 0:
+                if (kmutex_lock_try_once((kmutex_t *)m)) {
+                        return UACPI_STATUS_OK;
+                }
+                return UACPI_STATUS_TIMEOUT;
+        case 0xFFFF:
+        default:
+                /* TODO: timeout for < 0xFFFF not implemented */
+                kmutex_lock((kmutex_t *)m);
+                return UACPI_STATUS_OK;
+        }
 
+        return UACPI_STATUS_OK;
 }
 
 
-void uacpi_kernel_release_mutex(uacpi_handle)
+void uacpi_kernel_release_mutex(uacpi_handle m)
 {
-
+        kmutex_unlock((kmutex_t *)m);
 }
+
+
 
 
 uacpi_handle uacpi_kernel_create_event(void)
 {
-
+        while (1);
 }
 
 
 void uacpi_kernel_free_event(uacpi_handle)
 {
-
+        while (1);
 }
 
 
-void uacpi_kernel_log(uacpi_log_level, const uacpi_char*)
+extern vcon_t boot_console;
+
+void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 {
 
+        vcon_printf(&boot_console, (char *)msg);
+        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
@@ -194,13 +209,14 @@ uacpi_status uacpi_kernel_pci_device_open(
     uacpi_pci_address address, uacpi_handle *out_handle
 )
 {
-
+        memcpy(out_handle, &address, sizeof(uacpi_pci_address));
+        return UACPI_STATUS_OK;
 }
 
 
 void uacpi_kernel_pci_device_close(uacpi_handle)
 {
-
+        /* NOOP */
 }
 
 
@@ -208,7 +224,8 @@ uacpi_status uacpi_kernel_pci_read8(
     uacpi_handle device, uacpi_size offset, uacpi_u8 *value
 )
 {
-
+        uacpi_pci_address addr;
+        memcpy(&addr, device, sizeof(uacpi_pci_address));
 }
 
 
@@ -216,7 +233,7 @@ uacpi_status uacpi_kernel_pci_read16(
     uacpi_handle device, uacpi_size offset, uacpi_u16 *value
 )
 {
-
+        while (1);
 }
 
 
@@ -224,7 +241,7 @@ uacpi_status uacpi_kernel_pci_read32(
     uacpi_handle device, uacpi_size offset, uacpi_u32 *value
 )
 {
-
+        while (1);
 }
 
 
@@ -233,7 +250,7 @@ uacpi_status uacpi_kernel_pci_write8(
     uacpi_handle device, uacpi_size offset, uacpi_u8 value
 )
 {
-
+        while (1);
 }
 
 
@@ -241,7 +258,7 @@ uacpi_status uacpi_kernel_pci_write16(
     uacpi_handle device, uacpi_size offset, uacpi_u16 value
 )
 {
-
+        while (1);
 }
 
 
@@ -249,30 +266,30 @@ uacpi_status uacpi_kernel_pci_write32(
     uacpi_handle device, uacpi_size offset, uacpi_u32 value
 )
 {
-
+        while (1);
 }
 
 
 uacpi_handle uacpi_kernel_create_spinlock(void)
 {
-
+        return (uacpi_handle *)kmutex_create();
 }
 
 
-void uacpi_kernel_free_spinlock(uacpi_handle)
+void uacpi_kernel_free_spinlock(uacpi_handle m)
 {
-
+        kmutex_free((kmutex_t *)m);
 }
 
-uacpi_cpu_flags uacpi_kernel_lock_spinlock(uacpi_handle)
+uacpi_cpu_flags uacpi_kernel_lock_spinlock(uacpi_handle m)
 {
-
+        kmutex_lock((kmutex_t *)m);
 }
 
 
-void uacpi_kernel_unlock_spinlock(uacpi_handle, uacpi_cpu_flags)
+void uacpi_kernel_unlock_spinlock(uacpi_handle m, uacpi_cpu_flags)
 {
-
+        kmutex_unlock((kmutex_t *)m);
 }
 
 
@@ -283,7 +300,8 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
     uacpi_handle *out_irq_handle
 )
 {
-
+        /* FIXME */
+//        while (1);
 }
 
 
@@ -291,13 +309,14 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(
     uacpi_interrupt_handler, uacpi_handle irq_handle
 )
 {
-
+        while (1);
 }
 
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void)
 {
-
+        /* FIXME */
+        return (uacpi_thread_id)1;
 }
 
 
@@ -305,41 +324,46 @@ uacpi_status uacpi_kernel_schedule_work(
     uacpi_work_type, uacpi_work_handler, uacpi_handle ctx
 )
 {
-
+        while (1);
 }
 
 
 uacpi_status uacpi_kernel_wait_for_work_completion(void)
 {
-
+        while (1);
 }
 
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 {
-
+        /* FIXME */
+        return 10000000;
+        while (1);
 }
 
 
 void uacpi_kernel_reset_event(uacpi_handle)
 {
-
+        while (1);
 }
 
 
 void uacpi_kernel_signal_event(uacpi_handle)
 {
+        while (1);
 
 }
 
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle, uacpi_u16)
 {
+        while (1);
 
 }
 
 
 uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request*)
 {
+        while (1);
 
 }

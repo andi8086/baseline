@@ -430,7 +430,8 @@ uacpi_status uacpi_namespace_load(void)
     struct uacpi_table tbl;
     uacpi_status ret;
     uacpi_u64 begin_ts, end_ts;
-    struct table_load_stats st = { 0 };
+    struct table_load_stats st;
+    uacpi_memset(&st, 0, sizeof(st));
     uacpi_size cur_index;
 
     UACPI_ENSURE_INIT_LEVEL_IS(UACPI_INIT_LEVEL_SUBSYSTEM_INITIALIZED);
@@ -610,7 +611,9 @@ static uacpi_iteration_decision do_sta_ini(
 
 uacpi_status uacpi_namespace_initialize(void)
 {
-    struct ns_init_context ctx = { 0 };
+    struct ns_init_context ctx;
+
+    uacpi_memset(&ctx, 0, sizeof(ctx));
     uacpi_namespace_node *root;
     uacpi_u64 begin_ts, end_ts;
     uacpi_address_space_handlers *handlers;
