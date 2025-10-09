@@ -11,10 +11,29 @@
 #include "video/gc.h"
 
 
+uacpi_i32 uacpi_vsnprintf(
+    uacpi_char *buffer, uacpi_size capacity, const uacpi_char *fmt,
+    uacpi_va_list vlist
+);
+
 uacpi_i32 uacpi_snprintf(
     uacpi_char *buffer, uacpi_size capacity, const uacpi_char *fmt, ...
 );
 
+extern vcon_t boot_console;
+
+
+static void kprintf(char *fmt, ...)
+{
+        char buffer[80];
+        va_list l, l2;
+        va_start(l, fmt);
+        uacpi_vsnprintf(buffer, 80, fmt, l);
+        va_end(l);
+
+        vcon_printf(&boot_console, buffer);
+        gc_update_fb(boot_console.gc, 64, 64);
+}
 
 
 /* Returns the physical address of the RSDP structure */
@@ -72,7 +91,7 @@ uacpi_status uacpi_kernel_io_map(
 )
 {
         /* not possible on x86, we just store the base as handle */
-        *out_handle = (uacpi_handle *)(uintptr_t)base;
+        *out_handle = (uacpi_handle)(uintptr_t)base;
 
         return UACPI_STATUS_OK;
 }
@@ -115,6 +134,7 @@ uacpi_status uacpi_kernel_io_write8(
     uacpi_handle base, uacpi_size offset, uacpi_u8 in_value
 )
 {
+//        kprintf("outb(%x, %x)\n", (uintptr_t)base + offset, in_value);
         outb((uintptr_t)base + offset, in_value);
         return UACPI_STATUS_OK;
 }
@@ -124,6 +144,7 @@ uacpi_status uacpi_kernel_io_write16(
     uacpi_handle base, uacpi_size offset, uacpi_u16 in_value
 )
 {
+//        kprintf("outw(%x, %x)\n", (uintptr_t)base + offset, in_value);
         outw((uintptr_t)base + offset, in_value);
         return UACPI_STATUS_OK;
 
@@ -134,6 +155,7 @@ uacpi_status uacpi_kernel_io_write32(
     uacpi_handle base, uacpi_size offset, uacpi_u32 in_value
 )
 {
+//        kprintf("outd(%x, %x)\n", (uintptr_t)base + offset, in_value);
         outd((uintptr_t)base + offset, in_value);
         return UACPI_STATUS_OK;
 }
@@ -192,13 +214,12 @@ uacpi_handle uacpi_kernel_create_event(void)
 }
 
 
-void uacpi_kernel_free_event(uacpi_handle)
+void uacpi_kernel_free_event(uacpi_handle e)
 {
-        /* FIXME */
+        kfree(e);
 }
 
 
-extern vcon_t boot_console;
 
 void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 {
@@ -211,13 +232,19 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-
+        char buffer[32];
+        uacpi_snprintf(buffer, 32, "stall_us(%u)\n", usec);
+        vcon_printf(&boot_console, (char *)buffer);
+        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
-
+        char buffer[32];
+        uacpi_snprintf(buffer, 32, "sleep_ms(%u)\n", msec);
+        vcon_printf(&boot_console, (char *)buffer);
+        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
@@ -226,6 +253,10 @@ uacpi_status uacpi_kernel_pci_device_open(
 )
 {
         memcpy(out_handle, &address, sizeof(uacpi_pci_address));
+
+/*        kprintf("PCI dev open(seg=%u, bus=%u, dev=%u, fn=%u)\n",
+                address.segment, address.bus, address.device, address.function);
+*/
         return UACPI_STATUS_OK;
 }
 
@@ -242,6 +273,28 @@ uacpi_status uacpi_kernel_pci_read8(
 {
         uacpi_pci_address addr;
         memcpy(&addr, device, sizeof(uacpi_pci_address));
+        uint32_t seg = addr.segment;
+        uint32_t bus = addr.bus;
+        uint32_t dev = addr.device;
+        uint32_t fn = addr.function;
+
+        uint32_t dword_offset = offset & 0xFC;
+
+        uint32_t address = (uint32_t)((bus << 16) | (dev << 11) |
+                        (fn << 8) | (dword_offset) |
+                        (uint32_t)0x80000000);
+
+        outd(0xCF8, address);
+
+        uint32_t dword_in = ind(0xCFC);
+
+        switch (offset & 3) {
+        case 0: *value = dword_in & 0xFF;
+        case 1: *value = (dword_in >> 8) & 0xFF;
+        case 2: *value = (dword_in >> 16) & 0xFF;
+        case 3: *value = (dword_in >> 24) & 0xFF;
+        }
+        return UACPI_STATUS_OK;
 }
 
 
@@ -249,6 +302,7 @@ uacpi_status uacpi_kernel_pci_read16(
     uacpi_handle device, uacpi_size offset, uacpi_u16 *value
 )
 {
+        kprintf("pci_read16");
         while (1);
 }
 
@@ -257,6 +311,7 @@ uacpi_status uacpi_kernel_pci_read32(
     uacpi_handle device, uacpi_size offset, uacpi_u32 *value
 )
 {
+        kprintf("pci_read32");
         while (1);
 }
 
@@ -317,18 +372,14 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
 )
 {
         char buffer[32];
-        /* FIXME */
         asm("cli");
-        uacpi_snprintf(buffer, 32, "Install int handler for irq %u\n", irq);
-        vcon_printf(&boot_console, buffer);
-        gc_update_fb(boot_console.gc, 64, 64); 
+        kprintf("Install int handler for irq %u\n", irq);
 
         if (irq > 15) {
                 return UACPI_STATUS_NOT_FOUND;
         }
         bool res = irq_handler_register(irq, (uint32_t)handler);
         asm("sti");
-//        while (1);
         if (res) {
                 return UACPI_STATUS_OK;
         }
