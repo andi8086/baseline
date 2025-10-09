@@ -65,6 +65,145 @@ void _trap_handler_code(trap_frame_code_t frame)
 }
 
 
+/* stubs defined in isr.S, call functios with underscore */
+const uintptr_t irq_handlers[16] = {
+        (uintptr_t)irq0_handler,
+        (uintptr_t)irq1_handler,
+        (uintptr_t)irq2_handler,
+        (uintptr_t)irq3_handler,
+        (uintptr_t)irq4_handler,
+        (uintptr_t)irq5_handler,
+        (uintptr_t)irq6_handler,
+        (uintptr_t)irq7_handler,
+        (uintptr_t)irq8_handler,
+        (uintptr_t)irq9_handler,
+        (uintptr_t)irq10_handler,
+        (uintptr_t)irq11_handler,
+        (uintptr_t)irq12_handler,
+        (uintptr_t)irq13_handler,
+        (uintptr_t)irq14_handler,
+        (uintptr_t)irq15_handler
+};
+
+#define IRQ_CB_MAX 4
+void (*irq_isr_cb[16][IRQ_CB_MAX])(void) = { 0 };
+
+#define CALL_ISR_CB(irq) \
+        for (int i = 0; i < IRQ_CB_MAX; i++) { \
+                if (irq_isr_cb[irq][i]) { \
+                        irq_isr_cb[irq][i](); \
+                } \
+        } \
+
+
+bool irq_handler_register(int irq, uint32_t func)
+{
+        for (int i = 0; i < IRQ_CB_MAX; i++) {
+                if (!irq_isr_cb[irq][i]) {
+                        irq_isr_cb[irq][i] = (void *)func;
+                        return true;
+                }
+        }
+        return false;
+}
+
+
+void _irq0_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(0);
+}
+
+
+void _irq1_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(1);
+}
+
+
+void _irq2_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(2);
+}
+
+
+void _irq3_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(3);
+}
+
+
+void _irq4_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(4);
+}
+
+
+void _irq5_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(5);
+}
+
+
+void _irq6_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(6);
+}
+
+
+void _irq7_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(7);
+}
+
+
+void _irq8_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(8);
+}
+
+
+void _irq9_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(9);
+}
+
+
+void _irq10_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(10);
+}
+
+
+void _irq11_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(11);
+}
+
+
+void _irq12_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(12);
+}
+
+
+void _irq13_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(13);
+}
+
+
+void _irq14_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(14);
+}
+
+
+void _irq15_handler(int_frame_t frame)
+{
+        CALL_ISR_CB(15);
+}
+
+
 void idt_init(void)
 {
         idtptr.ptr = (uintptr_t)idt;
@@ -92,6 +231,11 @@ void idt_init(void)
         idt_entry_init(&idt[0x14], 0x08, (uintptr_t)&trap_handler, IDT_TRAP, 0);
         idt_entry_init(&idt[0x15], 0x08, (uintptr_t)&trap_handler, IDT_TRAP, 0);
 
+        for (int irq = 0; irq < 0x0F; irq++) {
+                idt_entry_init(&idt[0x20 + irq], 0x08,
+                        (uintptr_t)&irq_handlers[irq], IDT_INT, 0);
+
+        }
 
         asm (
                 "mov eax, offset idtptr\n"

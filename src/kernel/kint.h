@@ -3,6 +3,7 @@
 
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 #pragma pack(push, 1)
@@ -75,6 +76,25 @@ void idt_init(void);
 extern void trap_handler(void);
 extern void trap_handler_code(void);
 extern void int_handler(void);
+
+extern void irq0_handler(void);
+extern void irq1_handler(void);
+extern void irq2_handler(void);
+extern void irq3_handler(void);
+extern void irq4_handler(void);
+extern void irq5_handler(void);
+extern void irq6_handler(void);
+extern void irq7_handler(void);
+extern void irq8_handler(void);
+extern void irq9_handler(void);
+extern void irq10_handler(void);
+extern void irq11_handler(void);
+extern void irq12_handler(void);
+extern void irq13_handler(void);
+extern void irq14_handler(void);
+extern void irq15_handler(void);
+
+bool irq_handler_register(int irq, uint32_t func);
 
 
 #endif

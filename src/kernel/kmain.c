@@ -353,9 +353,15 @@ void kmain(uint32_t magic, uint32_t addr)
                 gc_update_fb(boot_console.gc, 64, 64);
         }
 
-        uacpi_namespace_initialize();
+        ret = uacpi_namespace_initialize();
+        if (uacpi_unlikely_error(ret)) {
+                vcon_printf(&boot_console, uacpi_status_to_string(ret));
+                gc_update_fb(boot_console.gc, 64, 64);
+        }
 //        uacpi_finalize_gpe_initialization();
         pci_init();
+
+        vcon_t x = { 0 };
 
         /* enable interrupts for testing */
         asm("sti\n");

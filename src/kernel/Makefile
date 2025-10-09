@@ -16,6 +16,8 @@ CFLAGS = \
         -fno-pic \
         -no-pie \
         -Iuacpi/include \
+        -mno-sse \
+        -mno-mmx \
         -g
 
 

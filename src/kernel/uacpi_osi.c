@@ -5,9 +5,17 @@
 #include "klib.h"
 #include "kio.h"
 #include "kmutex.h"
+#include "kint.h"
 
 #include "video/vcon.h"
 #include "video/gc.h"
+
+
+uacpi_i32 uacpi_snprintf(
+    uacpi_char *buffer, uacpi_size capacity, const uacpi_char *fmt, ...
+);
+
+
 
 /* Returns the physical address of the RSDP structure */
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address)
@@ -172,13 +180,21 @@ void uacpi_kernel_release_mutex(uacpi_handle m)
 
 uacpi_handle uacpi_kernel_create_event(void)
 {
-        while (1);
+        uint32_t *event;
+
+        event = kmalloc_high(sizeof(uint32_t));
+
+        if (event) {
+                *event = 0;
+        }
+
+        return (uacpi_handle)event;
 }
 
 
 void uacpi_kernel_free_event(uacpi_handle)
 {
-        while (1);
+        /* FIXME */
 }
 
 
@@ -296,12 +312,27 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle m, uacpi_cpu_flags)
 
 
 uacpi_status uacpi_kernel_install_interrupt_handler(
-    uacpi_u32 irq, uacpi_interrupt_handler, uacpi_handle ctx,
+    uacpi_u32 irq, uacpi_interrupt_handler handler, uacpi_handle ctx,
     uacpi_handle *out_irq_handle
 )
 {
+        char buffer[32];
         /* FIXME */
+        asm("cli");
+        uacpi_snprintf(buffer, 32, "Install int handler for irq %u\n", irq);
+        vcon_printf(&boot_console, buffer);
+        gc_update_fb(boot_console.gc, 64, 64); 
+
+        if (irq > 15) {
+                return UACPI_STATUS_NOT_FOUND;
+        }
+        bool res = irq_handler_register(irq, (uint32_t)handler);
+        asm("sti");
 //        while (1);
+        if (res) {
+                return UACPI_STATUS_OK;
+        }
+        return UACPI_STATUS_NOT_FOUND;
 }
 
 
@@ -342,23 +373,56 @@ uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 }
 
 
-void uacpi_kernel_reset_event(uacpi_handle)
+void uacpi_kernel_reset_event(uacpi_handle e)
 {
-        while (1);
+        __atomic_fetch_add((uint32_t *)e, 0, __ATOMIC_SEQ_CST);
 }
 
 
-void uacpi_kernel_signal_event(uacpi_handle)
+void uacpi_kernel_signal_event(uacpi_handle e)
 {
-        while (1);
-
+        __atomic_fetch_add((uint32_t *)e, 1, __ATOMIC_SEQ_CST);
 }
 
 
-uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle, uacpi_u16)
+uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle e, uacpi_u16 timeout)
 {
-        while (1);
+        uint32_t *counter = (uint32_t *)e;
 
+        if (timeout == 0xFFFF) {
+                while (*counter != 0) {
+                        asm("pause");
+                }
+                return UACPI_TRUE;
+        }
+
+        /* FIXME: handle timeout */
+        /*
+        for (;;) {
+                if (*counter == 0) {
+                        return UACPI_TRUE;
+                }
+                usec = tmr.get_time_usec();
+                elapsed_msec = (usec - usec_start) / 1000;
+                if (elapsed_msec >= timeout) P{
+                        break;
+                }
+                md_pause();
+        }
+        __atomic_fetch_sub((uint32_t *)e, 1, __ATOMIC_SEQ_CST);
+        return UACPI_FALSE;
+
+
+        */
+
+        for (;;) {
+                if (*counter == 0) {
+                        return UACPI_TRUE;
+                }
+                asm("pause");
+        }
+        __atomic_fetch_sub((uint32_t *)e, 1, __ATOMIC_SEQ_CST);
+        return UACPI_FALSE;
 }
 
 
