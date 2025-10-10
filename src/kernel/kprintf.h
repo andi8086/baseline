@@ -19,6 +19,7 @@ uacpi_i32 uacpi_snprintf(
 extern vcon_t boot_console;
 
 void kprintf(char *fmt, ...);
+void kcolor(uint32_t fc, uint32_t bg);
 
 
 #endif

@@ -287,12 +287,11 @@ void kmain(uint32_t magic, uint32_t addr)
         page_table_init();
 
         gc_t *gc = gc_create(640, 960);
-        vcon_init(&boot_console, gc);
-
-        gc_clear(gc, 0x0000FF);
+        vcon_init(&boot_console, gc, 64, 64);
+        vcon_color(&boot_console, 0xAAAAAA, 0x000055);
+        vcon_clear(&boot_console);
+        vcon_printf(&boot_console, "Starting Baseline...\n");
         vcon_printf(&boot_console, "Kernel 0.01\n");
-        gc_update_fb(gc, 64, 64);
-
 
 /*        for (int y = 0; y < vfb.height; y++) {
                 for (int x = 0; x < vfb.width; x++) {

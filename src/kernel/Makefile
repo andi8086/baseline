@@ -71,10 +71,13 @@ objs_32 = \
         pci.o \
         kdev.o \
         kprintf.o \
+        drivers/device.o \
+        drivers/driver.o \
         $(objs_uACPI) \
         uacpi_osi.o
 
 #       fonts/ega8x16.o
+
 
 
 kint.o: kint.c

@@ -29,7 +29,7 @@ uacpi_iteration_decision pci_check_acpi_root(
 
 void pci_init(void)
 {
-        static const char *pci_root_ids[] = {
+/*        static const char *pci_root_ids[] = {
                 "PNP0A03", "PNP0A08", NULL
         };
 
@@ -38,7 +38,7 @@ void pci_init(void)
                 pci_root_ids,
                 pci_check_acpi_root,
                 NULL);
-
+*/
 }
 
 

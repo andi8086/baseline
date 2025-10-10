@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 
-void vcon_init(vcon_t *vcon, gc_t *gc)
+void vcon_init(vcon_t *vcon, gc_t *gc, int16_t winx, int16_t winy)
 {
         vcon->gc = gc;
         vcon->rows = gc->width / 16;
@@ -16,6 +16,9 @@ void vcon_init(vcon_t *vcon, gc_t *gc)
 
         vcon->fc = 0x7F7F7F;
         vcon->bc = 0x000000;
+
+        vcon->winx = winx;
+        vcon->winy = winy;
 }
 
 
@@ -29,6 +32,8 @@ static void vcon_newline(vcon_t *vcon)
 {
         vcon->row++;
         vcon->col = 0;
+
+        gc_update_fb(vcon->gc, vcon->winx, vcon->winy);
 }
 
 
@@ -60,7 +65,6 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
         uint8_t *glyph_start = (uint8_t *)console_font + 16 * (uint32_t)c;
 
         uint8_t *gp = glyph_start;
-
         for (uint32_t py = row * 16; py < (row + 1) * 16; py++) {
 
                 uint32_t px = col * 8;
@@ -80,7 +84,7 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
         }
 
         vcon->col++;
-        if (vcon->col > vcon->cols) {
+        if (vcon->col >= vcon->cols) {
                 vcon->col = 0;
                 vcon->row++;
         }
@@ -159,4 +163,18 @@ void vcon_printf(vcon_t *vcon, const char *format, ...)
         }
 
         va_end(args);
+}
+
+
+void vcon_color(vcon_t *vcon, uint32_t fc, uint32_t bc)
+{
+       vcon->fc = fc;
+       vcon->bc = bc;
+}
+
+
+void vcon_clear(vcon_t *vcon)
+{
+        gc_clear(vcon->gc, vcon->bc);
+        gc_update_fb(vcon->gc, vcon->winx, vcon->winy);
 }

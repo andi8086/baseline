@@ -15,6 +15,10 @@ void kprintf(char *fmt, ...)
         va_end(l2);
 
         vcon_printf(&boot_console, buffer);
-        gc_update_fb(boot_console.gc, 64, 64);
 }
 
+
+void kcolor(uint32_t fc, uint32_t bg)
+{
+        vcon_color(&boot_console, fc, bg);
+}
