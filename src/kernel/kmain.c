@@ -86,6 +86,7 @@ struct multiboot_header {
 #include "ioapic.h"
 #include "pci.h"
 #include <uacpi/uacpi.h>
+#include "kdev.h"
 
 
 extern psf2_header_t *console_font;
@@ -285,7 +286,7 @@ void kmain(uint32_t magic, uint32_t addr)
 
         page_table_init();
 
-        gc_t *gc = gc_create(640, 480);
+        gc_t *gc = gc_create(640, 960);
         vcon_init(&boot_console, gc);
 
         gc_clear(gc, 0x0000FF);
@@ -360,8 +361,7 @@ void kmain(uint32_t magic, uint32_t addr)
         }
 //        uacpi_finalize_gpe_initialization();
         pci_init();
-
-        vcon_t x = { 0 };
+        uacpi_devices_enumerate();
 
         /* enable interrupts for testing */
         asm("sti\n");

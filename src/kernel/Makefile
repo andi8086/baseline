@@ -69,6 +69,8 @@ objs_32 = \
         ioapic.o \
         lapic.o \
         pci.o \
+        kdev.o \
+        kprintf.o \
         $(objs_uACPI) \
         uacpi_osi.o
 

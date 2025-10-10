@@ -2,7 +2,6 @@
 
 #include "pe_mem.h"
 #include "klib.h"
-#include "ksched.h"
 
 
 static kmutex_t *kmutex_table;

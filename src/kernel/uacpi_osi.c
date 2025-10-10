@@ -6,34 +6,12 @@
 #include "kio.h"
 #include "kmutex.h"
 #include "kint.h"
+#include "pci.h"
 
 #include "video/vcon.h"
 #include "video/gc.h"
 
-
-uacpi_i32 uacpi_vsnprintf(
-    uacpi_char *buffer, uacpi_size capacity, const uacpi_char *fmt,
-    uacpi_va_list vlist
-);
-
-uacpi_i32 uacpi_snprintf(
-    uacpi_char *buffer, uacpi_size capacity, const uacpi_char *fmt, ...
-);
-
-extern vcon_t boot_console;
-
-
-static void kprintf(char *fmt, ...)
-{
-        char buffer[80];
-        va_list l, l2;
-        va_start(l, fmt);
-        uacpi_vsnprintf(buffer, 80, fmt, l);
-        va_end(l);
-
-        vcon_printf(&boot_console, buffer);
-        gc_update_fb(boot_console.gc, 64, 64);
-}
+#include "kprintf.h"
 
 
 /* Returns the physical address of the RSDP structure */
@@ -278,22 +256,9 @@ uacpi_status uacpi_kernel_pci_read8(
         uint32_t dev = addr.device;
         uint32_t fn = addr.function;
 
-        uint32_t dword_offset = offset & 0xFC;
+        uint8_t res = pci_read_8(seg, bus, dev, fn, offset);
+        *value = res;
 
-        uint32_t address = (uint32_t)((bus << 16) | (dev << 11) |
-                        (fn << 8) | (dword_offset) |
-                        (uint32_t)0x80000000);
-
-        outd(0xCF8, address);
-
-        uint32_t dword_in = ind(0xCFC);
-
-        switch (offset & 3) {
-        case 0: *value = dword_in & 0xFF;
-        case 1: *value = (dword_in >> 8) & 0xFF;
-        case 2: *value = (dword_in >> 16) & 0xFF;
-        case 3: *value = (dword_in >> 24) & 0xFF;
-        }
         return UACPI_STATUS_OK;
 }
 
@@ -302,8 +267,17 @@ uacpi_status uacpi_kernel_pci_read16(
     uacpi_handle device, uacpi_size offset, uacpi_u16 *value
 )
 {
-        kprintf("pci_read16");
-        while (1);
+        uacpi_pci_address addr;
+        memcpy(&addr, device, sizeof(uacpi_pci_address));
+        uint32_t seg = addr.segment;
+        uint32_t bus = addr.bus;
+        uint32_t dev = addr.device;
+        uint32_t fn = addr.function;
+
+        uint16_t res = pci_read_16(seg, bus, dev, fn, offset);
+        *value = res;
+
+        return UACPI_STATUS_OK;
 }
 
 
@@ -311,8 +285,17 @@ uacpi_status uacpi_kernel_pci_read32(
     uacpi_handle device, uacpi_size offset, uacpi_u32 *value
 )
 {
-        kprintf("pci_read32");
-        while (1);
+        uacpi_pci_address addr;
+        memcpy(&addr, device, sizeof(uacpi_pci_address));
+        uint32_t seg = addr.segment;
+        uint32_t bus = addr.bus;
+        uint32_t dev = addr.device;
+        uint32_t fn = addr.function;
+
+        uint32_t res = pci_read_32(seg, bus, dev, fn, offset);
+        *value = res;
+
+        return UACPI_STATUS_OK;
 }
 
 

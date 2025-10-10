@@ -233,7 +233,7 @@ void idt_init(void)
 
         for (int irq = 0; irq < 0x0F; irq++) {
                 idt_entry_init(&idt[0x20 + irq], 0x08,
-                        (uintptr_t)&irq_handlers[irq], IDT_INT, 0);
+                        (uintptr_t)irq_handlers[irq], IDT_INT, 0);
 
         }
 
