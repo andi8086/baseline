@@ -1,4 +1,5 @@
 #include "pe_mem.h"
+#include "video/fb.h"
 
 #include "ksmp_apic.h"
 
@@ -34,6 +35,13 @@ it.
 
 uint32_t *page_dir;
 
+#define PAGE_PRESENT 1
+
+#define PAGE_PAT 0x80
+#define PAGE_PCD 0x10
+#define PAGE_PWT 0x08
+
+
 void page_table_init(void)
 {
         /* we assume 8 MB of RAM minimum and put the page directory
@@ -48,7 +56,15 @@ void page_table_init(void)
 
                 uint32_t *pt = page_tables + pd_idx * PT_ENTRIES;
                 for (uint32_t pt_idx = 0; pt_idx < PT_ENTRIES; pt_idx++) {
-                        pt[pt_idx] = (pd_idx << 22) | (pt_idx << 12) | 1;
+                        uint32_t linear_addr = (pd_idx << 22) | (pt_idx << 12);
+                        pt[pt_idx] = linear_addr | PAGE_PRESENT;
+                        if (linear_addr >= (uintptr_t)vfb.addr &&
+                            linear_addr < (uintptr_t)vfb.addr +
+                                                vfb.height * vfb.pitch) {
+                                /* enable write combine caching for
+                                   frame buffer */
+                                pt[pt_idx] |= PAGE_PCD |  PAGE_PWT;
+                        }
                 }
         }
 
@@ -142,4 +158,39 @@ void kfree(void *p)
                         return;
                 }
         }
+}
+
+
+void msr_pat_get(uint32_t *lo, uint32_t *hi)
+{
+        uint32_t msr = 0x277;
+        asm volatile ("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
+}
+
+
+void msr_pat_set(uint32_t lo, uint32_t hi)
+{
+        uint32_t msr = 0x277;
+        asm volatile ("wrmsr" :: "a"(lo), "d"(hi), "c"(msr));
+}
+
+
+#define PAT_UC 0        /* uncachable */
+#define PAT_WC 1        /* write combine */
+#define PAT_WT 4        /* write through */
+#define PAT_WP 5        /* write protect */
+#define PAT_WB 6        /* write back */
+#define PAT_UNC 7       /* uncached (UC-) */
+
+void pat_init(void)
+{
+        /* modify entry #3 for write combine cache */
+        uint32_t lo;
+        uint32_t hi;
+        msr_pat_get(&lo, &hi);
+
+        /* modify the 3rd entry */
+        lo &= 0xFFFFFF;
+        lo |= PAT_WC << 24;
+        msr_pat_set(lo, hi);
 }

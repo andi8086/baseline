@@ -92,4 +92,7 @@ void kmem_arena_add(uint32_t base, uint32_t size);
 void *kmalloc_high(uint32_t size);
 void kfree(void *p);
 
+void pat_init(void);
+
+
 #endif

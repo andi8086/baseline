@@ -25,5 +25,7 @@ void gc_update_fb(gc_t *gc, int32_t ux, int32_t uy);
 
 void gc_putpixel(gc_t *gc, int32_t x, int32_t y, uint32_t color);
 void gc_clear(gc_t *gc, uint32_t bgcolor);
+void gc_scroll_up(gc_t *gc, uint32_t dy);
+void gc_fill_vblock(gc_t *gc, uint32_t offset, uint32_t count, uint32_t val);
 
 #endif

@@ -8,7 +8,7 @@
 void vcon_init(vcon_t *vcon, gc_t *gc, int16_t winx, int16_t winy)
 {
         vcon->gc = gc;
-        vcon->rows = gc->width / 16;
+        vcon->rows = gc->height / 16;
         vcon->cols = gc->width / 8;
 
         vcon->row = 0; /* relative */
@@ -28,10 +28,31 @@ static void vcon_home(vcon_t *vcon)
 }
 
 
+static void vcon_scrollup(vcon_t *vcon)
+{
+        gc_scroll_up(vcon->gc, 16);
+        vcon->row--;
+        /* invalidate whole window */
+        vcon->gc->mincy = 0;
+        vcon->gc->maxcy = vcon->rows * 16 - 1;
+        vcon->gc->mincx = 0;
+        vcon->gc->maxcx = vcon->cols * 8 - 1;
+
+        gc_fill_vblock(vcon->gc,
+                       vcon->row * 16 * vcon->gc->vpitch,
+                       16 * vcon->gc->vpitch,
+                       vcon->bc);
+}
+
+
 static void vcon_newline(vcon_t *vcon)
 {
         vcon->row++;
         vcon->col = 0;
+
+        if (vcon->row >= vcon->rows) {
+                vcon_scrollup(vcon);
+        }
 
         gc_update_fb(vcon->gc, vcon->winx, vcon->winy);
 }
@@ -87,16 +108,15 @@ void vcon_putc(vcon_t *vcon, unsigned char c)
         if (vcon->col >= vcon->cols) {
                 vcon->col = 0;
                 vcon->row++;
-        }
+                if (vcon->row >= vcon->rows) {
+                        vcon_scrollup(vcon);
+                }
 
-        if (vcon->col == 0) {
+                gc_update_fb(vcon->gc, vcon->winx, vcon->winy);
+        } else if (vcon->col == 0) {
                 vcon->gc->maxcx = vcon->cols * 8 - 1;
         } else if (vcon->col * 8 - 1 > vcon->gc->maxcx) {
                 vcon->gc->maxcx = vcon->col * 8 - 1;
-        }
-
-        if (vcon->row * 16 - 1 > vcon->gc->maxcy) {
-                vcon->gc->maxcy = vcon->row * 16 - 1;
         }
 }
 

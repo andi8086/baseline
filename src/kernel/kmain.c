@@ -87,6 +87,7 @@ struct multiboot_header {
 #include "pci.h"
 #include <uacpi/uacpi.h>
 #include "kdev.h"
+#include "kprintf.h"
 
 
 extern psf2_header_t *console_font;
@@ -284,10 +285,12 @@ void kmain(uint32_t magic, uint32_t addr)
                 }
         }
 
+        pat_init();
         page_table_init();
 
+
         gc_t *gc = gc_create(640, 960);
-        vcon_init(&boot_console, gc, 64, 64);
+        vcon_init(&boot_console, gc, 34, 21);
         vcon_color(&boot_console, 0xAAAAAA, 0x000055);
         vcon_clear(&boot_console);
         vcon_printf(&boot_console, "Starting Baseline...\n");
@@ -343,20 +346,17 @@ void kmain(uint32_t magic, uint32_t addr)
         uacpi_status ret = uacpi_initialize(0);
         if (uacpi_unlikely_error(ret)) {
                 vcon_printf(&boot_console, uacpi_status_to_string(ret));
-                gc_update_fb(boot_console.gc, 64, 64);
         }
 
 
         ret = uacpi_namespace_load();
         if (uacpi_unlikely_error(ret)) {
                 vcon_printf(&boot_console, uacpi_status_to_string(ret));
-                gc_update_fb(boot_console.gc, 64, 64);
         }
 
         ret = uacpi_namespace_initialize();
         if (uacpi_unlikely_error(ret)) {
                 vcon_printf(&boot_console, uacpi_status_to_string(ret));
-                gc_update_fb(boot_console.gc, 64, 64);
         }
 //        uacpi_finalize_gpe_initialization();
         pci_init();

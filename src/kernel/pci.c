@@ -21,7 +21,6 @@ uacpi_iteration_decision pci_check_acpi_root(
 
         vcon_printf(&boot_console, "pci bridge seg %p, bus %p\n",
                 seg, bus);
-        gc_update_fb(boot_console.gc, 64, 64);
 
         return UACPI_ITERATION_DECISION_CONTINUE;
 }

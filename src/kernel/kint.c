@@ -40,7 +40,6 @@ void _trap_handler(int_frame_t frame)
 {
         boot_console.fc = 0xFF0000;
         vcon_printf(&boot_console, "Fault\n");
-        gc_update_fb(boot_console.gc, 64, 64);
 
         asm("cli\nhlt\n");
 }
@@ -60,7 +59,6 @@ void _trap_handler_code(trap_frame_code_t frame)
         vcon_printf(&boot_console, "ESI = %p     EDI = %p\n", frame.esi, frame.edi);
         vcon_printf(&boot_console, "EBP = %p     ESP = %p\n", frame.ebp, frame.esp);
         vcon_printf(&boot_console, "\n");
-        gc_update_fb(boot_console.gc, 64, 64);
         asm("cli\nhlt\n");
 }
 

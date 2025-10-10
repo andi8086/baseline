@@ -1,6 +1,7 @@
 #include "gc.h"
 #include "../pe_mem.h"
 #include "fb.h"
+#include "../klib.h"
 
 
 gc_t *gc_create(uint32_t width, uint32_t height)
@@ -80,3 +81,26 @@ void gc_clear(gc_t *gc, uint32_t bgcolor)
                 }
         }
 }
+
+
+void gc_scroll_up(gc_t *gc, uint32_t dy)
+{
+        /* start offset for data to scroll */
+        uint8_t *start = (uint8_t *)gc->gmem + gc->vpitch * dy;
+        uint8_t *dst = (uint8_t *)gc->gmem;
+        uint8_t *lower_block = (uint8_t *)gc->gmem + gc->vpitch * (gc->height - dy);
+
+        memcpy_fast(dst, start, gc->vpitch * (gc->height - dy));
+}
+
+
+
+void gc_fill_vblock(gc_t *gc, uint32_t offset, uint32_t count, uint32_t val)
+{
+        uint32_t *start = (uint32_t *)(gc->gmem + offset);
+
+        while (count--) {
+                *(start++) = val;
+        }
+}
+

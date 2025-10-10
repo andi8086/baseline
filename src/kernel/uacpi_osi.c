@@ -203,7 +203,6 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 {
 
         vcon_printf(&boot_console, (char *)msg);
-        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
@@ -213,7 +212,6 @@ void uacpi_kernel_stall(uacpi_u8 usec)
         char buffer[32];
         uacpi_snprintf(buffer, 32, "stall_us(%u)\n", usec);
         vcon_printf(&boot_console, (char *)buffer);
-        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
@@ -222,7 +220,6 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
         char buffer[32];
         uacpi_snprintf(buffer, 32, "sleep_ms(%u)\n", msec);
         vcon_printf(&boot_console, (char *)buffer);
-        gc_update_fb(boot_console.gc, 64, 64);
 }
 
 
