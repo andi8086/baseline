@@ -23,7 +23,7 @@ SECS_PER_FAT     equ 9
 SECS_PER_TRACK   equ 18
 NUM_HEADS        equ 2
 
-BLOAD_SECS       equ 16
+BLOAD_SECS       equ 16 ; bload.sys has maximally 8 KB
 
 bits 16
 cpu 8086
@@ -135,7 +135,7 @@ read_lba:  ; input: ax = LBA [0-2779] for 1.44M
         mov byte [bpb], ah      ; we reuse this as 'sector'
 
         ; now if we have 1 head, then [h] = 0, [c] = al
-        ; if we have 2 heads, then [h] = ah AND 1, [c] = al SHR 1
+        ; if we have 2 heads, then [h] = al AND 1, [c] = al SHR 1
 
         mov cl, byte [nheads]
         dec cl
