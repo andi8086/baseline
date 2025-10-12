@@ -101,7 +101,10 @@ entry:
         mov cx, BLOAD_SECS
 load_bload:
         push cx
+        push ax
         call read_lba
+        pop ax
+        inc ax
         pop cx
         jc boot_error
         loop load_bload
