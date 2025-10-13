@@ -2,6 +2,7 @@
 #include "conio.h"
 #include "vesa.h"
 #include "dev.h"
+#include "bda.h"
 
 
 int main(void);
@@ -10,12 +11,6 @@ uint16_t cpu_detect(void);
 
 uint8_t boot_drive;
 
-
-#define CPU_TYPE_8086  0
-#define CPU_TYPE_V20   1
-#define CPU_TYPE_80186 2
-#define CPU_TYPE_80286 3
-#define CPU_TYPE_80386 4
 
 
 void _cstart(void)
@@ -44,30 +39,11 @@ int main(void)
 
         res = dev_init();
 
-        puts(hello_msg);
+        puts((char *)hello_msg);
 
         cpu = cpu_detect();
 
-        switch (cpu) {
-        case CPU_TYPE_8086:
-                puts("CPU: 8086/8088\r\n");
-                break;
-        case CPU_TYPE_V20:
-                puts("CPU: NEC V20/V30\r\n");
-                break;
-        case CPU_TYPE_80186:
-                puts("CPU: 80186/80188\r\n");
-                break;
-        case CPU_TYPE_80286:
-                puts("CPU: 80286\r\n");
-                break;
-        case CPU_TYPE_80386:
-                puts("CPU: i386\r\n");
-                break;
-        default:
-                puts("CPU: unknown\r\n");
-                break;
-        }
+        sys_get_equipment();
 
 
 /*        res = vesa_init();
@@ -77,14 +53,14 @@ int main(void)
         }
 */
 
-        mode = vesa_find_mode(640, 480, 24, &fblo, &fbhi);
+//        mode = vesa_find_mode(640, 480, 24, &fblo, &fbhi);
 
         // vararg_test(4, 16384u, 32768u, 65535u, 1024u);
         puts("Boot drive is ");
         putc(boot_drive + 'A');
         puts(":\r\n");
-        puts("VESA mode found: ");
-        dump16(mode);
+//       puts("VESA mode found: ");
+//       dump16(mode);
         puts("\r\n");
 //        res = vesa_mode_set(mode);
 
