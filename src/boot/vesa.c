@@ -4,7 +4,7 @@
 
 #include "mem.h"
 
-
+/*
 char vesa_buffer[512];
 
 const vesa_mode_t mode_table[] = {
@@ -82,5 +82,101 @@ int vesa_init(void)
 
         return 0;
 }
+*/
+
+#define DIFF(a, b) ((a) >= (b) ? (a) - (b) : ((b) - (a)));
 
 
+uint16_t vesa_find_mode(int16_t x, int16_t y, uint8_t bpp,
+                        uint16_t *fblo, uint16_t *fbhi)
+{
+        vesa_buffer_t *ctrl = (vesa_buffer_t *)0xC000;
+        vbe_mode_info_t *inf = (vbe_mode_info_t *)0xD000;
+        regs86_t rin, rout;
+        uint16_t fb0, fb1;
+
+        uint16_t far *modes;
+        int i;
+        uint16_t best = 0x13;
+        uint32_t pixdiff, bestpixdiff = DIFF(320 * 200, x * y);
+        uint32_t depthdiff, bestdepthdiff =
+                8 >= bpp ? 8 - bpp : (bpp - 8) * 2;
+        fb0 = 0;
+        fb1 = 0;
+        *fblo = 0;
+        *fbhi = 0;
+        strncpy((void far *)ctrl->id, (void far *)"VBE2", 4);
+        rin._es = _SEG_DS();
+        rin._ax = 0x4F00;
+        rin._di = (uint16_t)ctrl;
+        vid_int86(&rin, &rout);
+
+        if (rout._ax != 0x004F) {
+                return best;
+        }
+
+        modes = (uint16_t far *)
+                MK_FAR(ctrl->mode_pointer_hi, ctrl->mode_pointer_lo);
+
+        for (i = 0; modes[i] != 0xFFFF; i++) {
+                rin._es = _SEG_DS();
+                rin._cx = modes[i];
+                rin._di = (uint16_t)inf;
+                rin._ax = 0x4F01;
+                vid_int86(&rin, &rout);
+                if (rout._ax != 0x004F) {
+                        continue;
+                }
+
+                /* check if this is a graphics mode with linear
+                   frame buffer */
+                if ((inf->attributes & 0x80) != 0x80) {
+                        continue;
+                }
+
+                /* check if packed pixel or direct color mode */
+                if (inf->memory_model != 4 && inf->memory_model != 6) {
+                        continue;
+                }
+
+                /* check fo exact match */
+                if (x == inf->width && y == inf->height &&
+                    bpp == inf->bpp) {
+                        *fblo = inf->framebuffer[0];
+                        *fbhi = inf->framebuffer[1];
+                        return modes[i];
+                }
+
+                /* compare to closest match and remember */
+                pixdiff = DIFF(inf->width * inf->height, x * y);
+                depthdiff = (inf->bpp >= bpp) ?
+                            inf->bpp - bpp : (bpp - inf->bpp) * 2;
+                if (bestpixdiff > pixdiff ||
+                    (bestpixdiff == pixdiff && bestdepthdiff > depthdiff)) {
+                        best = modes[i];
+                        bestpixdiff = pixdiff;
+                        bestdepthdiff = depthdiff;
+                        fb0 = inf->framebuffer[0];
+                        fb1 = inf->framebuffer[1];
+                }
+        }
+        if (x == 640 && y == 480 && bpp == 1) return 0x11;
+
+        puts("Linear frame buffer at ");
+        *fblo = fb0;
+        *fbhi = fb1;
+        return best;
+}
+
+
+int vesa_mode_set(uint16_t mode)
+{
+        regs86_t rin, rout;
+        rin._ax = 0x4F02;
+        rin._bx = mode | VESA_REQUEST_LFB;
+        vid_int86(&rin, &rout);
+        if (rout._ax != 0x004F) {
+                return 1;
+        }
+        return 0;
+}

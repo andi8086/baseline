@@ -1,23 +1,25 @@
 #include "conio.h"
 #include "int86.h"
 #include "mem.h"
+#include "dev.h"
+
+
+char getc(void)
+{
+        return defconsole.stdin->get(defconsole.stdin);
+}
 
 
 void putc(char c)
 {
-        regs86_t inr, outr;
-        inr._es = _SEG_ES();
-        inr._ax = 0x0E00 | (c & 0xFF);
-        inr._cx = 1;
-        inr._bx = 5;
-        vid_int86(&inr, &outr);
+        defconsole.stdout->put(defconsole.stdout, c);
 }
 
 
-void puts(char near *s)
+void puts(char *s)
 {
         while (*s) {
-                putc(*s);
+                defconsole.stdout->put(defconsole.stdout, *s);
                 s++;
         }
 }
