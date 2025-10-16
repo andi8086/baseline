@@ -3,6 +3,7 @@
 #include "vesa.h"
 #include "dev.h"
 #include "bda.h"
+#include "c_printf.h"
 
 
 int main(void);
@@ -36,6 +37,7 @@ int main(void)
         int res;
         uint16_t mode, fblo, fbhi;
         uint16_t cpu;
+        char bufr[128];
 
         res = dev_init();
 
@@ -64,6 +66,11 @@ int main(void)
         puts("\r\n");
 //        res = vesa_mode_set(mode);
 
+        //c_snprintf(bufr, 128, "%08lu\r\n", 1048576);
+        c_snprintf(bufr, 127, "%'+8.10d\r\n", -32767);
+        puts((char *)bufr);
+
+        puts("AA\r\n");
 
 kernel_halt:
         goto kernel_halt;

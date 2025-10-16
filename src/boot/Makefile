@@ -18,6 +18,7 @@ boot.bin: boot.asm
 # -ms: Memory model = small
 # -zq: quiet
 # -zp1: byte-pack structures
+# -fpi: 80x87 with emulation
 
 %.o: %.c
 	$(info WCC $@)
@@ -30,7 +31,8 @@ boot.bin: boot.asm
 space := $(empty) $(empty)
 comma := ,
 
-BLOAD_OBJc := bload.o,int86.o,vesa.o,conio.o,mem.o,dev.o,cpu.o,system.o
+BLOAD_OBJc := bload.o,int86.o,vesa.o,conio.o,mem.o,dev.o,cpu.o,system.o,\
+              c_printf.o
 BLOAD_OBJs = $(subst $(comma),$(space),$(BLOAD_OBJc))
 
 

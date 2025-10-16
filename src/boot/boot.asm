@@ -23,7 +23,7 @@ SECS_PER_FAT     equ 9
 SECS_PER_TRACK   equ 18
 NUM_HEADS        equ 2
 
-BLOAD_SECS       equ 16 ; bload.sys has maximally 8 KB
+BLOAD_SECS       equ 32 ; bload.sys has maximally 8 KB
 
 bits 16
 cpu 8086
