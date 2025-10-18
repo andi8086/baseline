@@ -15,7 +15,6 @@ cpu_detect_ proc near public
         push dx
         pushf
         push cx
-        push si
 
         xor  ax, ax
         push ax
@@ -85,10 +84,9 @@ cpu_detect_ proc near public
         xor dh, dh
         mov ax, dx
 
-        pop si
         pop cx
-        pop dx
         popf
+        pop dx
         ret
 cpu_detect_ endp
 

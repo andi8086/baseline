@@ -6,7 +6,6 @@
 
 void puts(char near *s);
 void putc(char c);
-void dump16(uint16_t num);
-
+void printf(char *fmt, ...);
 
 #endif

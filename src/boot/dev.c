@@ -84,23 +84,3 @@ int dev_init(void)
         return 0;
 }
 
-
-
-void vararg_test(uint16_t count, ...)
-{
-        va_list l;
-        int i;
-        uint16_t a;
-
-        va_start(l, count);
-        for (i = 0; i < count; i++) {
-                a = va_arg(l, uint16_t);
-                dump16(a);
-                putc(' ');
-        }
-
-        va_end(l);
-}
-
-
-

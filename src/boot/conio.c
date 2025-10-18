@@ -2,6 +2,7 @@
 #include "int86.h"
 #include "mem.h"
 #include "dev.h"
+#include "c_printf.h"
 
 
 char getc(void)
@@ -25,31 +26,16 @@ void puts(char *s)
 }
 
 
-/* will not work if buffer is on stack of function! */
-char buffer[8];
-const char near *hex_chars = "0123456789ABCDEF";
+static char printf_buffer[128];
 
 
-void dump16(uint16_t num)
+void printf(char *fmt, ...)
 {
-        int16_t i;
-        uint16_t n = num;
-        uint16_t idx;
+        va_list p;
 
-        buffer[4] = ' ';
-        buffer[5] = '\0';
+        va_start(p, fmt);
+        c_vsnprintf(printf_buffer, 128, fmt, p);
+        va_end(p);
 
-        for (i = 3; i >= 0; i--) {
-                idx = n & 15;
-                buffer[i] = *(hex_chars + idx);
-                n >>= 4;
-        }
-
-        puts(buffer);
-
-        return;
-
-        __asm("ADD AX, 0");
+        puts(printf_buffer);
 }
-
-

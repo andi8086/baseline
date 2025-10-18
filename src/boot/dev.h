@@ -30,7 +30,6 @@ typedef struct {
 
 extern console_t defconsole;
 
-void vararg_test(uint16_t count, ...);
 int dev_init(void);
 
 #endif

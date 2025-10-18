@@ -4,14 +4,14 @@
 #include "dev.h"
 #include "bda.h"
 #include "c_printf.h"
+#include "blkio.h"
+#include "system.h"
 
 
 int main(void);
 uint16_t read_far16(uint16_t seg, uint16_t offs);
-uint16_t cpu_detect(void);
 
 uint8_t boot_drive;
-
 
 
 void _cstart(void)
@@ -28,26 +28,93 @@ void _cstart(void)
 }
 
 
-const char *hello_msg = "Baseline, v0.1\r\n(C)2025 by Andreas J. Reichel\r\n";
+const char *hello_msg = "\r\nBaseline, v0.1\r\n"
+                        "(C)2025 by Andreas J. Reichel\r\n";
 
 
 
 int main(void)
 {
+        equipment_t *eqp;
         int res;
         uint16_t mode, fblo, fbhi;
-        uint16_t cpu;
         char bufr[128];
+        uint8_t drive = 0;
+        uint8_t drive_counter = 0;
+        blk_dev_t *bdev;
+        char drv_letter;
+        uint8_t blkdev_counter;
 
         res = dev_init();
 
         puts((char *)hello_msg);
 
-        cpu = cpu_detect();
 
-        sys_get_equipment();
+        sys_get_equipment(&eqp);
+
+        /* Initialize block IO and block devices */
+
+        blkio_init();
+
+//        drv_letter = 'A';
+        drive = 0;
+        blkdev_counter = 0;
+
+        for (drive = 0; drive < eqp->num_floppies; drive++) {
+                bdev = blkio_get_dev(drive);
+                /* init BIOS int13 driver for the drive */
+                blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
+                                  (void *)&drive);
+                bdev->has_parttable = 0;
+                c_snprintf(bdev->name, 8, "FD%u", drive);
+                drv_letter++;
+                blkdev_counter++;
+        }
+
+        for (drive = 0x80; drive < 0x80 + eqp->num_hdds - 1; drive++) {
+                bdev = blkio_get_dev(blkdev_counter);
+                /* init BIOS int13 driver for the drive */
+                blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
+                                  (void *)&drive);
+                bdev->has_parttable = 1;
+                c_snprintf(bdev->name, 8, "HD%u", drive - 0x80);
+                drv_letter++;
+                blkdev_counter++;
+        }
+
+        blkio_set_max(blkdev_counter - 1);
+
+        /* Initialize logical drives */
+
+        for (drive = 0; drive < blkdev_counter; drive++) {
+                bdev = blkio_get_dev(drive);
+
+                if (!bdev) {
+                        /* should not happen */
+                        break;
+                }
+                if (!bdev->has_parttable) {
+                        /* no partition table, filesystem is on
+                           drive itself */
+                        res = blkio_read_vbr(bdev, 0);
+                        if (res) {
+                                /* could not read VBR */
+                        }
+                } else {
 
 
+                }
+        }
+
+/*
+        for (drive = 0; drive < blkdev_counter; drive++) {
+                bdev = blkio_get_dev(drive);
+                printf("Drive %s has "
+                       "%u tracks, %u heads, %u sectors per track\r\n",
+                       bdev->name, bdev->drv_int13.cmax + 1,
+                       bdev->drv_int13.hmax + 1, bdev->drv_int13.smax);
+        }
+*/
 /*        res = vesa_init();
         if (res) {
                 puts("VESA init failed\r\n");
@@ -65,12 +132,6 @@ int main(void)
 //       dump16(mode);
         puts("\r\n");
 //        res = vesa_mode_set(mode);
-
-        //c_snprintf(bufr, 128, "%08lu\r\n", 1048576);
-        c_snprintf(bufr, 127, "%'+8.10d\r\n", -32767);
-        puts((char *)bufr);
-
-        puts("AA\r\n");
 
 kernel_halt:
         goto kernel_halt;

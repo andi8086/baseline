@@ -1,19 +1,49 @@
 #include "system.h"
 #include "bda.h"
 #include "conio.h"
+#include "int86.h"
 
 
 static equipment_t equipment;
 
-void sys_get_equipment(void)
+
+extern uint16_t cpu_detect(void);
+
+
+void sys_get_equipment(equipment_t **e)
 {
         equipment_word_t far *ew =
-                (equipment_word_t far *)EQUIPMENT_WORD_ADDR;
+                (equipment_word_t far *)BDA_EQUIPMENT_WORD_ADDR;
+        regs86_t rin, rout;
+
         int i;
+
+        equipment.cpu_type = cpu_detect();
 
         equipment.num_com_ports = ew->num_com_ports;
         equipment.num_lpt_ports = ew->num_lpt_ports;
+
         equipment.num_floppies = ew->floppy_drives;
+
+//      This won't work on a system older then 286/AT
+//
+//        equipment.num_hdds = hdds;
+//
+//      instead int 13 will return number of drives
+//      in dl, if input dl was >= 80h. Later systems
+//      can also do this for floppy drives, but simulation
+//      of a pentium II system with 86Box shows it works
+
+        equipment.num_hdds = 0;
+
+        rin._ax = 0x0800;
+        rin._dx = 0x0080;
+        disk_int86(&rin, &rout);
+
+        if (!(rout._flags & FLAGS_CARRY)) {
+                equipment.num_hdds = rout._dx & 0xFF;
+        }
+
 
         for (i = 0; i < equipment.num_com_ports; i++) {
                 equipment.com_io_addr[i] = *(uint16_t far *)COM_IO_ADDR(i);
@@ -25,22 +55,26 @@ void sys_get_equipment(void)
 
         puts("COM Ports: ");
         for (i = 0; i < equipment.num_com_ports; i++) {
-                dump16(equipment.com_io_addr[i]);
+                printf("COM%u at %03Xh", i + 1, equipment.com_io_addr[i]);
+                if (i < equipment.num_com_ports - 1) {
+                        putc(',');
+                        putc(' ');
+                }
         }
         puts("\r\n");
 
         puts("LPT Ports: ");
         for (i = 0; i < equipment.num_lpt_ports; i++) {
-                dump16(equipment.lpt_io_addr[i]);
+                printf("LPT%u at %03Xh", i + 1, equipment.lpt_io_addr[i]);
+                if (i < equipment.num_lpt_ports - 1) {
+                        putc(',');
+                        putc(' ');
+                }
         }
         puts("\r\n");
 
-        puts("Floppy Drives: ");
-        for (i = 0; i < equipment.num_floppies; i++) {
-                putc('A' + i);
-                putc(':');
-                putc(' ');
-        }
+        printf("%u FDDs reported by BIOS\r\n", equipment.num_floppies);
+        printf("%u HDDs reported by BIOS\r\n", equipment.num_hdds);
 
-        puts("\r\n");
+        *e = &equipment;
 }

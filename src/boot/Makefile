@@ -32,7 +32,7 @@ space := $(empty) $(empty)
 comma := ,
 
 BLOAD_OBJc := bload.o,int86.o,vesa.o,conio.o,mem.o,dev.o,cpu.o,system.o,\
-              c_printf.o
+              c_printf.o,blkio.o
 BLOAD_OBJs = $(subst $(comma),$(space),$(BLOAD_OBJc))
 
 

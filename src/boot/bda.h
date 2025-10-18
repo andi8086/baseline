@@ -21,7 +21,9 @@ typedef struct {
 #define COM_IO_ADDR(n)     (0x00400000 + 2*n)
 #define LPT_IO_ADDR(n)     (0x00400008 + 2*n)
 
-#define EQUIPMENT_WORD_ADDR 0x00400010
+#define BDA_EQUIPMENT_WORD_ADDR 0x00400010
 
+/* uint8_t */
+#define BDA_HARD_DISKS 0x00400075
 
 #endif
