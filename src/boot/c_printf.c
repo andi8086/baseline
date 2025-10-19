@@ -71,7 +71,7 @@ static void wps_lzpad(int digits, int signsize, uint8_t flags,
         int prec_set;
         int grouping;
 
-        grouping = flags | PRINTF_FLAGS_GROUP;
+        grouping = flags & PRINTF_FLAGS_GROUP;
 
         if (grouping) {
                 /* like in posix printf, only the real digits

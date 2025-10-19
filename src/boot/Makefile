@@ -1,6 +1,10 @@
-all: bootdisk
+all: bootdisk boot360k
 
 boot.bin: boot.asm
+	$(info ******************** BOOT SECTOR  **********************)
+	nasm -f bin $< -o $@
+
+boot360k.bin: boot360k.asm
 	$(info ******************** BOOT SECTOR  **********************)
 	nasm -f bin $< -o $@
 
@@ -46,3 +50,16 @@ bootdisk: boot.bin bload.sys
 	mformat -i floppy.bin
 	dd if=boot.bin conv=notrunc of=floppy.bin bs=512 count=1
 	mcopy -i floppy.bin bload.sys ::/
+
+boot360k: boot360k.bin bload.sys
+	$(info ********************* BOOT360K *************************)
+	dd if=/dev/zero of=f360k.bin bs=512 count=720
+	mformat -i f360k.bin
+	dd if=boot360k.bin conv=notrunc of=f360k.bin bs=512 count=1
+	mcopy -i f360k.bin bload.sys ::/
+	mattrib -i f360k.bin +s +h bload.sys
+	mmd -i f360k.bin test
+	mcopy -i f360k.bin bload.c ::/
+	mcopy -i f360k.bin blkio.c ::/
+	mcopy -i f360k.bin test.txt ::/
+

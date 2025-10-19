@@ -303,43 +303,226 @@ void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
 }
 
 
-typedef struct {
-        char name[8];
-        char ext[3];
-        uint8_t attrib;
-        uint8_t res0;
-        uint8_t creat_time[5];
-        uint16_t access_time;
-        uint16_t start_cluster_hi;
-        uint8_t write_time[4];
-        uint16_t start_cluster;
-        uint16_t file_size_lo;
-        uint16_t file_size_hi;
-} vfat_dir_entry_t;
+void vfat_decode_cdate(vfat_dir_entry_t *e, datetime_t *dt)
+{
+        dt->year = (e->creat_time[4] >> 1) + 1980;
+        dt->mon = (e->creat_time[4] & 1) * 8 | (e->creat_time[3] >> 5);
+        dt->day = (e->creat_time[3] & 31);
+        dt->hour = (e->creat_time[2] >> 3);
+        dt->min = ((e->creat_time[2] & 7) << 3) | (e->creat_time[1] >> 5);
+        dt->sec = (e->creat_time[1] & 31) << 1;
+}
 
 
 void debug_dump_dir(drive_entry_t *drive)
 {
         blk_drv_t *b;
-        int entry;
+        unsigned int entry;
         vfat_dir_entry_t *dire;
-        uint8_t hour, min, sec, sec_100;
-        uint8_t year, mon, day;
+        datetime_t cdate;
+        char attr_ch;
 
         b = &drive->dev->drv_gen;
 
-        b->read(b, _SEG_DS(), (uint16_t)sector_buffer,
-                drive->dev->vfat.root_dir_lba, 1);
 
-        dire = (vfat_dir_entry_t *)sector_buffer;
+        for (entry = 0; entry < drive->dev->vfat.root_dir_entries; entry++) {
+                if (entry % 16 == 0) {
+                        b->read(b, _SEG_DS(), (uint16_t)sector_buffer,
+                                drive->dev->vfat.root_dir_lba +
+                                entry / 16, 1);
 
-        for (entry = 0; entry < 16; entry++) {
+                        dire = (vfat_dir_entry_t *)sector_buffer;
+                }
+                if (dire->attrib == FATTR_LFN) {
+                        dire++;
+                        continue;
+                }
+
+                attr_ch = ' ';
+                if (dire->attrib & FATTR_SYSTEM) {
+                        attr_ch = 0xB0;
+                        if (dire->attrib & FATTR_HIDDEN) {
+                                attr_ch = 0xB2;
+                        }       
+                } else
+                if (dire->attrib & FATTR_HIDDEN) {
+                        attr_ch = 0xB1;
+                }
+
                 if (dire->name[0] != 0x20 && dire->name[0] != 0xF6 &&
                     dire->name[0] != 0 && dire->name[0] != 0xE5) {
-                        printf("%.8s %.3s %8u\r\n", dire->name,
-                               dire->ext, *(unsigned long int *)&dire->file_size_lo);
+                        vfat_decode_cdate(dire, &cdate);
+
+                        if (dire->attrib & FATTR_DIR) {
+                                printf("%8.8s%c%3.3s    <DIR>   ",
+                                dire->name, attr_ch, dire->ext);
+                        } else {
+                                printf("%8.8s%c%3.3s %10lu ", dire->name,
+                                attr_ch, dire->ext,
+                                *(unsigned long int *)&dire->file_size_lo);
+                        }
+
+                        printf(" %4u-%2u-%2u %02u:%02u:%02u ",
+                               cdate.year, cdate.mon, cdate.day,
+                               cdate.hour, cdate.min, cdate.sec);
+                        
+                        printf(" [%u]\r\n", dire->start_cluster);
                 }
                 dire++;
         }
+}
 
+
+typedef struct {
+        uint8_t ref_count;
+        vfs_vfat_t *vfat;
+        unsigned long dir_lba;
+        uint8_t rel_entry;
+        unsigned long start_lba;
+
+        /* sequential file access */
+        unsigned long file_ptr_seq;
+        unsigned long current_lba_seq;
+        uint8_t current_rel_sector_seq;
+        /* random file access */
+        unsigned long file_ptr_rnd;
+        unsigned long current_lba_rnd;
+        uint8_t current_rel_sector_rnd;
+} file_handle_t;
+
+#define DOS_FILES 16
+file_handle_t open_files[DOS_FILES];
+
+
+unsigned long cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
+{
+        unsigned long lba = 0;
+        unsigned long tmp = cluster - 2;
+        int i;
+
+        /* cannot use 32-bit multiply */
+        for (i = 0; i < vfat->cluster_size; i++) {
+                lba += tmp;
+        }
+
+        lba += vfat->data_start;
+
+        return lba;
+}
+
+/* opening a file ALWAYS goes over the directory contents,
+   hence we can always provide the parameters except if
+   we open the root directory itself, or a special system file */
+int vfat_file_open(vfs_vfat_t *vfat, vfat_dir_entry_t *e, unsigned long dir_lba,
+                   int dir_entry_rel)
+{
+        int i;
+        unsigned long file_cluster;
+
+        if (!e) {
+                file_cluster = 2;
+        } else {
+                file_cluster = e->start_cluster;
+        }
+
+        for (i = 0; i < DOS_FILES; i++) {
+                if (open_files[i].ref_count == 0) {
+                        break;
+                }
+        }
+
+        if (i == DOS_FILES) {
+                return -1;
+        }
+
+        open_files[i].ref_count++;
+
+        open_files[i].vfat = vfat;
+        open_files[i].dir_lba = dir_lba;
+        open_files[i].rel_entry = dir_entry_rel;
+        open_files[i].start_lba = cluster_to_lba(vfat, file_cluster);
+
+        open_files[i].file_ptr_seq = 0;
+        open_files[i].current_lba_seq = 0;
+        open_files[i].current_rel_sector_seq = 0;
+
+        open_files[i].file_ptr_rnd = 0;
+        open_files[i].current_lba_rnd = 0;
+        open_files[i].current_rel_sector_rnd = 0;
+
+        return i;
+}
+
+
+void vfat_file_close(int file_handle)
+{
+        if (open_files[file_handle].ref_count) {
+                open_files[file_handle].ref_count--;
+        }
+}
+
+
+int vfat_fopen_fcb(vfs_vfat_t *vfat, uint16_t fcb_seg, uint16_t fcb_offs)
+{
+        /* we check the current directory, if it is the root directory,
+           then we use number of root dir entries from BPB, otherwise
+           we use the linked list in FAT to iterate through the dir */
+
+        /* We must match the file name in the FCB in which case
+           no wildcards are allowed */
+        fcb_t far *fcb = _MK_FP(fcb_seg, fcb_offs);
+         
+        fcb->current_block = 0;
+        fcb->rec_size = 128;
+
+        if (fcb->drive_id == 0) {
+                /* set current drive ID, be aware that A = 1,
+                   B = 2, C = 3, ... */
+        }
+
+        /* search current directory for the file name,
+           the directory is stored in the open_file struct,
+           and the FCB itself gets a pointer to the file
+           handle in the reserved area, hence we internally
+           only work with the file handle and also update
+           the FCB if FCB functions are used */
+
+        
+}
+
+
+void debug_dump_file(drive_entry_t *drive, unsigned long file_cluster)
+{
+        blk_drv_t *b;
+        vfs_vfat_t *vfat;
+        unsigned long lba, tmp;
+        int i;
+        char *s;
+
+        if (file_cluster < 2) {
+                return;
+        }
+
+        b = &drive->dev->drv_gen;
+        vfat = &drive->dev->vfat;
+
+        /* calculate LBA of cluster (cluster 2 is the first of the
+           data area */
+
+        lba = 0;
+        tmp = file_cluster - 2;
+        for (i = 0; i < vfat->cluster_size; i++) {
+                lba += tmp;
+        }
+
+        lba += vfat->data_start;
+        
+        b->read(b, _FP_SEG(sector_buffer), _FP_OFF(sector_buffer),
+                lba, 1);
+
+        s = (char *)sector_buffer;
+        for (i = 0; i < 16; i++) {
+                printf("%32.32s", s);
+                s += 32;
+        }
 }

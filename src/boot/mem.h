@@ -18,6 +18,19 @@ uint16_t _SEG_DS(void);
 value [ax];
 
 
+/* taken from i86.h */
+
+#define _FP_OFF(__p) ((unsigned)(__p))
+
+unsigned short _FP_SEG(const volatile void __far *);
+#pragma aux _FP_SEG = \
+        __parm __caller [__ax __dx] \
+        __value [__dx] \
+        __modify __exact []
+
+#define _MK_FP(__s,__o) (((unsigned short)(__s)):>((void __near *)(__o)))
+
+
 void strncpy(void far *dst, void far *src, uint16_t count);
 
 

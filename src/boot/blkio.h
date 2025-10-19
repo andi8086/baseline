@@ -5,6 +5,7 @@
 
 #define BLK_DEV_MAX     26
 #define MAX_DRIVES      26
+#define MAX_PATH        128
 
 /* This defines the block device I/O Layer that is responsible
    for direct block device acces through a corresponding driver
@@ -47,8 +48,50 @@ typedef struct {
         uint8_t num_fats;
         unsigned long root_dir_cluster;
         unsigned long root_dir_lba;
+        uint16_t root_dir_entries;
+        unsigned long data_start;
+        char current_dir[MAX_PATH];
+        unsigned long current_dir_lba;
 } vfs_vfat_t;
 
+typedef struct {
+        char name[8];
+        char ext[3];
+        uint8_t attrib;
+        uint8_t res0;
+        uint8_t creat_time[5];
+        uint16_t access_time;
+        uint16_t start_cluster_hi;
+        uint8_t write_time[4];
+        uint16_t start_cluster;
+        uint16_t file_size_lo;
+        uint16_t file_size_hi;
+} vfat_dir_entry_t;
+
+typedef struct {
+        uint16_t year;
+        uint8_t mon;
+        uint8_t day;
+        uint8_t hour;
+        uint8_t min;
+        uint8_t sec; 
+} datetime_t;
+
+
+typedef struct {
+        uint8_t drive_id;
+        char file_name[8];
+        char file_ext[3];
+        uint16_t current_block;
+        uint16_t rec_size;
+        uint16_t file_size_lo;
+        uint16_t file_size_hi;
+        datetime_t datetime;
+        uint8_t reserved[8];
+        uint8_t seq_rec_number;
+        uint16_t rnd_rec_num_lo;
+        uint16_t rnd_rec_num_hi;
+} fcb_t;
 
 
 #define BLK_DEV_PHYSICAL 0
@@ -63,6 +106,16 @@ typedef struct {
                                 /*      (uses ext INT13) */
 #define FS_TYPE_FAT16b  0x0E    /* Win95 FAT16, LBA mapped */
 #define FS_TYPE_EXTPART 0x0F    /* Extended Partition, LBA */
+
+#define FATTR_RO        1
+#define FATTR_HIDDEN    2
+#define FATTR_SYSTEM    4
+#define FATTR_LABEL     8
+#define FATTR_LFN       0xF
+#define FATTR_DIR       0x10
+#define FATTR_ARCHIVE   0x20
+#define FATTR_DEVICE    0x40
+
 
 /* phy is only set for logical devices and is
    a link to the underlying physical device
@@ -128,5 +181,6 @@ extern drive_entry_t drive_table[MAX_DRIVES];
 
 
 void debug_dump_dir(drive_entry_t *drive);
+void debug_dump_file(drive_entry_t *drive, unsigned long file_cluster);
 
 #endif

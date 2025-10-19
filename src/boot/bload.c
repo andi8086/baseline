@@ -129,12 +129,20 @@ int main(void)
                                 bdev->vfat.fat_start +
                                 bdev->vfat.fat_sectors * bdev->vfat.num_fats;
 
+                        bdev->vfat.root_dir_entries = bpb->root_dir_entries;
+
                         drive_table[max_drive].dev = bdev;
                         drive_table[max_drive].drive_letter = drv_letter;
                         max_drive++;
 
-                        printf("Root dir starts at %u\r\n",
-                               bdev->vfat.root_dir_lba);
+                        /* round up! */
+                        bdev->vfat.data_start = bdev->vfat.root_dir_lba +
+                                (bpb->root_dir_entries + 15) / 16;
+
+                        c_snprintf(bdev->vfat.current_dir, MAX_PATH,
+                                   "\\");
+                        bdev->vfat.current_dir_lba = bdev->vfat.root_dir_lba;
+
                 } else {
 
 
@@ -146,6 +154,7 @@ int main(void)
         puts(":\r\n");
 
         debug_dump_dir(&drive_table[boot_drive]);
+        debug_dump_file(&drive_table[boot_drive], 28);
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {
                 bdev = blkio_get_dev(drive);
