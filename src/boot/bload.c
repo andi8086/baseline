@@ -44,6 +44,9 @@ int main(void)
         blk_dev_t *bdev;
         char drv_letter;
         uint8_t blkdev_counter;
+        char *vbr;
+        bpb_dos200_t *bpb;
+
 
         res = dev_init();
 
@@ -56,7 +59,6 @@ int main(void)
 
         blkio_init();
 
-//        drv_letter = 'A';
         drive = 0;
         blkdev_counter = 0;
 
@@ -66,6 +68,7 @@ int main(void)
                 blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
                                   (void *)&drive);
                 bdev->has_parttable = 0;
+                bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "FD%u", drive);
                 drv_letter++;
                 blkdev_counter++;
@@ -77,6 +80,7 @@ int main(void)
                 blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
                                   (void *)&drive);
                 bdev->has_parttable = 1;
+                bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "HD%u", drive - 0x80);
                 drv_letter++;
                 blkdev_counter++;
@@ -84,7 +88,8 @@ int main(void)
 
         blkio_set_max(blkdev_counter - 1);
 
-        /* Initialize logical drives */
+        /* Initialize drive table */
+        drv_letter = 'A';
 
         for (drive = 0; drive < blkdev_counter; drive++) {
                 bdev = blkio_get_dev(drive);
@@ -96,16 +101,51 @@ int main(void)
                 if (!bdev->has_parttable) {
                         /* no partition table, filesystem is on
                            drive itself */
-                        res = blkio_read_vbr(bdev, 0);
-                        if (res) {
+                        vbr = blkio_read_vbr(bdev, 0);
+                        if (!vbr) {
                                 /* could not read VBR */
+                                continue;
                         }
+                        /* we assume FAT12 (supported for 4 FDDs) */
+                        if (!(bdev->drv_int13.drive_number == 0 ||
+                            bdev->drv_int13.drive_number == 1 ||
+                            bdev->drv_int13.drive_number == 2 ||
+                            bdev->drv_int13.drive_number == 3)) {
+                                continue;
+                        }
+
+                        bdev->fs_type = FS_TYPE_FAT12;
+                        bdev->vfat.fat_bits = 12;
+
+                        bpb = (bpb_dos200_t *)(vbr + BPB_START_OFFSET);
+
+                        bdev->vfat.fat_start = bpb->reserved_sectors;
+                        bdev->vfat.cluster_size = bpb->sectors_per_cluster;
+                        bdev->vfat.fat_sectors = bpb->sectors_per_fat;
+                        bdev->vfat.num_fats = bpb->num_fats;
+
+                        bdev->vfat.root_dir_cluster = 0;
+                        bdev->vfat.root_dir_lba =
+                                bdev->vfat.fat_start +
+                                bdev->vfat.fat_sectors * bdev->vfat.num_fats;
+
+                        drive_table[max_drive].dev = bdev;
+                        drive_table[max_drive].drive_letter = drv_letter;
+                        max_drive++;
+
+                        printf("Root dir starts at %u\r\n",
+                               bdev->vfat.root_dir_lba);
                 } else {
 
 
                 }
         }
 
+        puts("Boot drive is ");
+        putc(boot_drive + 'A');
+        puts(":\r\n");
+
+        debug_dump_dir(&drive_table[boot_drive]);
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {
                 bdev = blkio_get_dev(drive);
@@ -125,9 +165,6 @@ int main(void)
 //        mode = vesa_find_mode(640, 480, 24, &fblo, &fbhi);
 
         // vararg_test(4, 16384u, 32768u, 65535u, 1024u);
-        puts("Boot drive is ");
-        putc(boot_drive + 'A');
-        puts(":\r\n");
 //       puts("VESA mode found: ");
 //       dump16(mode);
         puts("\r\n");

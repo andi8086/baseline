@@ -11,6 +11,9 @@
 
 static blk_dev_t blk_devs[BLK_DEV_MAX];
 
+drive_entry_t drive_table[MAX_DRIVES];
+uint8_t max_drive = 0;
+
 static uint8_t blkio_maxdev = BLK_DEV_MAX;
 
 
@@ -258,7 +261,7 @@ void blkio_set_max(uint8_t maxdev)
 uint8_t sector_buffer[512];
 
 
-int blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
+void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
 {
         int res;
         bpb_dos200_t *bpb = (bpb_dos200_t *)&sector_buffer[BPB_START_OFFSET];
@@ -271,7 +274,7 @@ int blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
 
                 /* TODO: use bios default values for drive */
 
-                return 1;
+                return NULL;
         }
 
         /* seems to be a valid boot sector, read PBP */
@@ -291,8 +294,52 @@ int blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
         bdev->drv_int13.hmax = bpb->num_heads - 1;
         bdev->drv_int13.smax = bpb->sectors_per_track;
 
+        /* FAT relevant stuff */
+
         /* FIXME: for 1.2 M drives, we need double stepping in some
            cases, how can we detect that? */
 
-        return 0;
+        return sector_buffer;
+}
+
+
+typedef struct {
+        char name[8];
+        char ext[3];
+        uint8_t attrib;
+        uint8_t res0;
+        uint8_t creat_time[5];
+        uint16_t access_time;
+        uint16_t start_cluster_hi;
+        uint8_t write_time[4];
+        uint16_t start_cluster;
+        uint16_t file_size_lo;
+        uint16_t file_size_hi;
+} vfat_dir_entry_t;
+
+
+void debug_dump_dir(drive_entry_t *drive)
+{
+        blk_drv_t *b;
+        int entry;
+        vfat_dir_entry_t *dire;
+        uint8_t hour, min, sec, sec_100;
+        uint8_t year, mon, day;
+
+        b = &drive->dev->drv_gen;
+
+        b->read(b, _SEG_DS(), (uint16_t)sector_buffer,
+                drive->dev->vfat.root_dir_lba, 1);
+
+        dire = (vfat_dir_entry_t *)sector_buffer;
+
+        for (entry = 0; entry < 16; entry++) {
+                if (dire->name[0] != 0x20 && dire->name[0] != 0xF6 &&
+                    dire->name[0] != 0 && dire->name[0] != 0xE5) {
+                        printf("%.8s %.3s %8u\r\n", dire->name,
+                               dire->ext, *(unsigned long int *)&dire->file_size_lo);
+                }
+                dire++;
+        }
+
 }

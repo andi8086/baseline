@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define BLK_DEV_MAX     26
-
+#define MAX_DRIVES      26
 
 /* This defines the block device I/O Layer that is responsible
    for direct block device acces through a corresponding driver
@@ -38,13 +38,53 @@ typedef struct {
 } blk_drv_int13_t;
 
 
+
 typedef struct {
+        unsigned long int fat_start;
+        uint8_t fat_bits;
+        uint8_t fat_sectors;
+        uint8_t cluster_size;
+        uint8_t num_fats;
+        unsigned long root_dir_cluster;
+        unsigned long root_dir_lba;
+} vfs_vfat_t;
+
+
+
+#define BLK_DEV_PHYSICAL 0
+#define BLK_DEV_LOGICAL  1
+
+
+#define FS_TYPE_FAT12   1
+#define FS_TYPE_FAT16   4       /* DOS FAT16 up to 32M */
+#define FS_TYPE_FAT16a  6       /* DOS FAT16 over 32M */
+#define FS_TYPE_FAT32   0x0B    /* Win95 OSR2 FAT32, up to 2047 GB */
+#define FS_TYPE_FAT32b  0x0C    /* Win95 OSR2 FAT32, LBA mapped */
+                                /*      (uses ext INT13) */
+#define FS_TYPE_FAT16b  0x0E    /* Win95 FAT16, LBA mapped */
+#define FS_TYPE_EXTPART 0x0F    /* Extended Partition, LBA */
+
+/* phy is only set for logical devices and is
+   a link to the underlying physical device
+
+   for logical devices, the starting address
+   with respect to the physical device is set
+   in phys_start */
+
+typedef struct blk_dev {
         uint16_t status;
         char name[8];
         uint8_t has_parttable;
+        uint8_t type;
+        struct blk_dev *phy;
+        unsigned long int phys_start;
+        uint8_t fs_type;
         union {
                 blk_drv_t drv_gen;
                 blk_drv_int13_t drv_int13;
+        };
+        union {
+                vfs_vfat_t vfat;
         };
 } blk_dev_t;
 
@@ -74,6 +114,19 @@ int blkdrv_int13_init(struct blk_drv *b, void *p);
 void lba_to_chs(blk_drv_int13_t *d, unsigned long lba,
                 uint16_t *cyl, uint8_t *head, uint8_t *sec);
 
-int blkio_read_vbr(blk_dev_t *bdev, unsigned long addr);
+void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr);
+
+
+
+typedef struct {
+        char drive_letter;
+        blk_dev_t *dev;
+} drive_entry_t;
+
+extern uint8_t max_drive;
+extern drive_entry_t drive_table[MAX_DRIVES];
+
+
+void debug_dump_dir(drive_entry_t *drive);
 
 #endif
