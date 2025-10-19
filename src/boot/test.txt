@@ -1,0 +1,15 @@
+Baseline 0.1
+============
+
+A MS-DOS compatible operating system, written in OpenWatcom C.
+This operating system aimes to be a slim and convenient replacement
+on older hardware from IBM PC up to Pentium 4+ machines (with BIOS).
+
+BLOAD.SYS - a variant of IO.SYS / MSDOS.SYS
+-------------------------------------------
+
+This is the kernel of the operating system, that emulates most
+of the MS-DOS functions. File handling emulates FCBs, an idea originally
+taken over from CP/M, as the DOS interface functions.
+
+
