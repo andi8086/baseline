@@ -36,7 +36,7 @@
 #define PRINTF_TYPE_UNKNOWN 10
 
 
-static int pf_strlen(char *s)
+static int pf_strlen(char __far *s)
 {
         int l = 0;
         while (*(s++)) l++;
@@ -126,7 +126,7 @@ static void wps_lzpad(int digits, int signsize, uint8_t flags,
 }
 
 
-static int bputn(char **d, char *d_max, char c, int n)
+static int bputn(char __far **d, char __far *d_max, char c, int n)
 {
         int count = 0;
 
@@ -139,8 +139,9 @@ static int bputn(char **d, char *d_max, char c, int n)
 }
 
 
-static uint8_t print_hex(char *d, char *d_max, uint8_t flags, uint8_t width,
-                         uint8_t prec, unsigned long int u, char *hexchars)
+static uint8_t print_hex(char __far *d, char __far *d_max, uint8_t flags,
+                         uint8_t width, uint8_t prec, unsigned long int u,
+                         char *hexchars)
 {
         /* maximal 8 hex digits for 32-bit values (used on 16-bit machines) */
         char hexbuff[9];
@@ -198,8 +199,8 @@ static uint8_t print_hex(char *d, char *d_max, uint8_t flags, uint8_t width,
 }
 
 
-static uint8_t print_octal(char *d, char *d_max, uint8_t flags, uint8_t width,
-                           uint8_t prec, unsigned long int u)
+static uint8_t print_octal(char __far *d, char __far *d_max, uint8_t flags,
+                           uint8_t width, uint8_t prec, unsigned long int u)
 {
         /* one octal digit encodes 3 bits,
          * hence 16 bits have 6 digits
@@ -263,8 +264,9 @@ uint8_t divide32(unsigned long int *u, unsigned long int divisor)
 }
 
 
-static uint8_t print_luint(char *d, char *d_max, uint8_t flags, uint8_t width,
-                           uint8_t prec, unsigned long int u, int sign)
+static uint8_t print_luint(char __far *d, char __far *d_max, uint8_t flags,
+                           uint8_t width, uint8_t prec, unsigned long int u,
+                           int sign)
 {
         int digits;
         uint8_t lz, pad;
@@ -366,8 +368,8 @@ static uint8_t print_luint(char *d, char *d_max, uint8_t flags, uint8_t width,
 }
 
 
-static uint8_t print_str(char *d, char *d_max, uint8_t flags, uint8_t width,
-                         uint8_t prec, char *str)
+static uint8_t print_str(char __far *d, char __far *d_max, uint8_t flags,
+                         uint8_t width, uint8_t prec, char __far *str)
 {
         /* %[W].[P]s says that we have W characters in the buffer
            where P characters come from the string and W-P are
@@ -429,10 +431,10 @@ static uint8_t print_str(char *d, char *d_max, uint8_t flags, uint8_t width,
 
 
 
-void c_vsnprintf(char *buffer, int max, char *fmt, va_list p)
+void c_vsnprintf(char __far *buffer, int max, char __far *fmt, va_list p)
 {
-        char *d = buffer;
-        char *d_max = buffer + max - 1;
+        char __far *d = buffer;
+        char __far *d_max = buffer + max - 1;
         int mode = PRINTF_MODE_NONE;
         uint8_t flags;
         uint8_t width;
@@ -540,15 +542,15 @@ void c_vsnprintf(char *buffer, int max, char *fmt, va_list p)
                         mode = PRINTF_MODE_OUTPUT;
                         fmt--;
                 } else if (mode == PRINTF_MODE_OUTPUT) {
-                        void *ptr;
+                        void __far *ptr;
                         char c;
-                        char *str;
+                        char __far *str;
                         signed long int lsint;
                         unsigned long int luint;
 
                         switch (type) {
                         case PRINTF_TYPE_POINTER:
-                                ptr = va_arg(p, void *);
+                                ptr = va_arg(p, void __far *);
                                 d += print_hex(d, d_max, PRINTF_FLAGS_HASH,
                                                0,
                                                len == PRINTF_LEN_LONG ?
@@ -592,7 +594,7 @@ void c_vsnprintf(char *buffer, int max, char *fmt, va_list p)
                                                  prec, luint);
                                 break;
                         case PRINTF_TYPE_CSTRING:
-                                str = va_arg(p, char *);
+                                str = va_arg(p, char __far *);
                                 d += print_str(d, d_max, flags, width, prec,
                                                str);
                                 break;
@@ -634,7 +636,7 @@ void c_vsnprintf(char *buffer, int max, char *fmt, va_list p)
 }
 
 
-void c_snprintf(char *buffer, int max, char *fmt, ...)
+void c_snprintf(char __far *buffer, int max, char __far *fmt, ...)
 {
         va_list l;
         va_start(l, fmt);

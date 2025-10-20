@@ -6,6 +6,6 @@
 
 void puts(char near *s);
 void putc(char c);
-void printf(char *fmt, ...);
+void printf(char __far *fmt, ...);
 
 #endif

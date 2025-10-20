@@ -29,12 +29,14 @@ void puts(char *s)
 static char printf_buffer[128];
 
 
-void printf(char *fmt, ...)
+void printf(char __far *fmt, ...)
 {
         va_list p;
+        char __far *buff = _MK_FP(_FP_SEG(printf_buffer),
+                                  _FP_OFF(printf_buffer));
 
         va_start(p, fmt);
-        c_vsnprintf(printf_buffer, 128, fmt, p);
+        c_vsnprintf(buff, 128, fmt, p);
         va_end(p);
 
         puts(printf_buffer);

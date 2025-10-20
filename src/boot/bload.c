@@ -6,6 +6,7 @@
 #include "c_printf.h"
 #include "blkio.h"
 #include "system.h"
+#include "mem.h"
 
 
 int main(void);
@@ -50,14 +51,13 @@ int main(void)
 
         res = dev_init();
 
-        puts((char *)hello_msg);
-
+        printf("%s\r\n", hello_msg);
 
         sys_get_equipment(&eqp);
 
         /* Initialize block IO and block devices */
 
-        blkio_init();
+        blkio_init(boot_drive);
 
         drive = 0;
         blkdev_counter = 0;
@@ -139,9 +139,10 @@ int main(void)
                         bdev->vfat.data_start = bdev->vfat.root_dir_lba +
                                 (bpb->root_dir_entries + 15) / 16;
 
-                        c_snprintf(bdev->vfat.current_dir, MAX_PATH,
-                                   "\\");
-                        bdev->vfat.current_dir_lba = bdev->vfat.root_dir_lba;
+                        strncpy(drive_table[max_drive].current_dir,
+                                "\\", 2);
+                        drive_table[max_drive].current_dir_lba =
+                                bdev->vfat.root_dir_lba;
 
                 } else {
 

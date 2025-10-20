@@ -37,7 +37,7 @@ void bzero(void *p, unsigned long size)
 }
 
 
-void blkio_init(void)
+void blkio_init(uint8_t boot_drive)
 {
         int i;
 

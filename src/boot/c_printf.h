@@ -5,8 +5,8 @@
 #include <stdarg.h>
 
 
-void c_vsnprintf(char *buffer, int max, char *fmt, va_list p);
-void c_snprintf(char *buffer, int max, char *fmt, ...);
+void c_vsnprintf(char __far *buffer, int max, char __far *fmt, va_list p);
+void c_snprintf(char __far *buffer, int max, char __far *fmt, ...);
 
 
 #endif
