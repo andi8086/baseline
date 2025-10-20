@@ -155,7 +155,7 @@ int main(void)
         puts(":\r\n");
 
         debug_dump_dir(&drive_table[boot_drive]);
-        debug_dump_file(&drive_table[boot_drive], 28);
+        debug_dump_file();
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {
                 bdev = blkio_get_dev(drive);

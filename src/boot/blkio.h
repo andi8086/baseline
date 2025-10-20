@@ -6,6 +6,7 @@
 #define BLK_DEV_MAX     26
 #define MAX_DRIVES      26
 #define MAX_PATH        128
+#define BLK_BUFFERS     10
 
 /* This defines the block device I/O Layer that is responsible
    for direct block device acces through a corresponding driver
@@ -50,8 +51,6 @@ typedef struct {
         unsigned long root_dir_lba;
         uint16_t root_dir_entries;
         unsigned long data_start;
-        char current_dir[MAX_PATH];
-        unsigned long current_dir_lba;
 } vfs_vfat_t;
 
 typedef struct {
@@ -141,6 +140,13 @@ typedef struct blk_dev {
         };
 } blk_dev_t;
 
+typedef struct {
+        uint8_t buffer[512];
+        int drive;
+        unsigned long lba;
+        int dirty; 
+        unsigned long acc;
+} blk_buffer_t;
 
 typedef struct {
         uint16_t bytes_per_sector;
@@ -159,7 +165,7 @@ typedef struct {
 #define BPB_START_OFFSET 0x0B
 
 
-void blkio_init(void);
+void blkio_init(uint8_t boot_drive);
 blk_dev_t *blkio_get_dev(uint8_t dev);
 
 int blkdrv_int13_init(struct blk_drv *b, void *p);
@@ -168,12 +174,16 @@ void lba_to_chs(blk_drv_int13_t *d, unsigned long lba,
                 uint16_t *cyl, uint8_t *head, uint8_t *sec);
 
 void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr);
+int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs);
 
+void blkio_set_max(uint8_t maxdev);
 
 
 typedef struct {
         char drive_letter;
         blk_dev_t *dev;
+        char current_dir[MAX_PATH];
+        unsigned long current_dir_lba;
 } drive_entry_t;
 
 extern uint8_t max_drive;
@@ -181,6 +191,6 @@ extern drive_entry_t drive_table[MAX_DRIVES];
 
 
 void debug_dump_dir(drive_entry_t *drive);
-void debug_dump_file(drive_entry_t *drive, unsigned long file_cluster);
+void debug_dump_file(void);
 
 #endif

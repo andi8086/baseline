@@ -14,8 +14,14 @@ static blk_dev_t blk_devs[BLK_DEV_MAX];
 drive_entry_t drive_table[MAX_DRIVES];
 uint8_t max_drive = 0;
 
+uint8_t current_drive = 0;
+uint8_t __far *dta;
+
 static uint8_t blkio_maxdev = BLK_DEV_MAX;
 
+blk_buffer_t blk_buffer[BLK_BUFFERS];
+
+uint8_t sector_buffer[512];
 
 int blkdrv_int13_init(struct blk_drv *b, void *);
 int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
@@ -44,7 +50,96 @@ void blkio_init(uint8_t boot_drive)
         for (i = 0; i < BLK_DEV_MAX; i++) {
                 bzero(&blk_devs[i], sizeof(blk_dev_t));
         }
+
+        if (boot_drive >= 0x80) {
+                boot_drive -= 0x7E;
+        }
+
+        /* A = 1, B = 2, C = 3, ... */
+        current_drive = boot_drive + 1;
+
+        dta = sector_buffer;
+
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                bzero(&blk_buffer[i], sizeof(blk_buffer_t));
+                blk_buffer[i].drive = -1;
+        }
 }
+
+
+blk_buffer_t *blk_buffer_get(void)
+{
+        /* returns a block buffer */
+        int i;
+        unsigned long acc0 = UINT32_MAX;
+        unsigned long acc1 = UINT32_MAX;
+        int acc0_idx;
+        int acc1_idx;
+        int drive;
+        blk_drv_t *drv; 
+
+        /* first look for a free one */
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                if (blk_buffer[i].drive == -1) {
+                        return &blk_buffer[i];
+                }
+        }
+
+        /* look for non-dirty buffer */
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                if (blk_buffer[i].dirty == 0) {
+                        return &blk_buffer[i];
+                }
+        }
+
+        /* get the least accessed one, by finding
+           the one with the lowest and the 2nd lowest
+           acc field */
+
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                if (blk_buffer[i].acc < acc0) {
+                        acc1 = acc0;
+                        acc1_idx = acc0_idx;
+                        acc0 = blk_buffer[i].acc;
+                        acc0_idx = i;
+                } 
+        }
+
+        /* subtract acc1 from all acc fields */
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                blk_buffer[i].acc -= acc1;
+        }
+
+        /* flush buffer acc0_idx if dirty */
+        if (blk_buffer[acc0_idx].dirty) {
+                drv = &drive_table[blk_buffer[acc0_idx].drive].dev->drv_gen;
+
+                drv->write(drv, _FP_SEG(&blk_buffer[acc0_idx].buffer),
+                           _FP_OFF(&blk_buffer[acc0_idx].buffer),
+                           blk_buffer[acc0_idx].lba, 512);
+                bzero(&blk_buffer[acc0_idx], sizeof(blk_buffer_t));
+                blk_buffer[acc0_idx].drive = -1;
+        }
+
+        return &blk_buffer[acc0_idx];
+}
+
+
+blk_buffer_t *blk_buffer_search(int drive, unsigned long lba)
+{
+        /* searches if a desired block has been cached */
+        int i;
+
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                if (blk_buffer[i].drive == drive &&
+                    blk_buffer[i].lba == lba) {
+                        return &blk_buffer[i];
+                }
+        }
+
+        return NULL;
+}
+
 
 
 /* Int 13 extended information */
@@ -258,7 +353,6 @@ void blkio_set_max(uint8_t maxdev)
 }
 
 
-uint8_t sector_buffer[512];
 
 
 void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
@@ -303,7 +397,7 @@ void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
 }
 
 
-void vfat_decode_cdate(vfat_dir_entry_t *e, datetime_t *dt)
+void vfat_decode_cdate(vfat_dir_entry_t __far *e, datetime_t *dt)
 {
         dt->year = (e->creat_time[4] >> 1) + 1980;
         dt->mon = (e->creat_time[4] & 1) * 8 | (e->creat_time[3] >> 5);
@@ -318,7 +412,7 @@ void debug_dump_dir(drive_entry_t *drive)
 {
         blk_drv_t *b;
         unsigned int entry;
-        vfat_dir_entry_t *dire;
+        vfat_dir_entry_t __far *dire;
         datetime_t cdate;
         char attr_ch;
 
@@ -331,7 +425,7 @@ void debug_dump_dir(drive_entry_t *drive)
                                 drive->dev->vfat.root_dir_lba +
                                 entry / 16, 1);
 
-                        dire = (vfat_dir_entry_t *)sector_buffer;
+                        dire = (vfat_dir_entry_t __far *)sector_buffer;
                 }
                 if (dire->attrib == FATTR_LFN) {
                         dire++;
@@ -462,7 +556,33 @@ void vfat_file_close(int file_handle)
 }
 
 
-int vfat_fopen_fcb(vfs_vfat_t *vfat, uint16_t fcb_seg, uint16_t fcb_offs)
+int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
+                    fcb_t __far *fcb)
+{
+
+        vfat_dir_entry_t __far *dire;
+        uint16_t entry;
+        drive_entry_t *drive = &drive_table[fcb->drive_id - 1];
+        blk_drv_t *b = &drive->dev->drv_gen;
+
+        if (dir_lba < vfat->data_start) {
+                /* must be root dir */
+ 
+                for (entry = 0; entry < vfat->root_dir_entries; entry++) {
+                        if (entry % 16 == 0) {
+        /*                        b->read(b, _FP_SEG(dta), _FP_OFF(dta),
+                                        dir_lba + entry / 16, 1);
+        */
+       //                         dire = (vfat_dir_entry_t __far *)dta;
+                        }
+
+//                        dire++; 
+                }
+        }
+} 
+
+
+int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 {
         /* we check the current directory, if it is the root directory,
            then we use number of root dir entries from BPB, otherwise
@@ -470,7 +590,8 @@ int vfat_fopen_fcb(vfs_vfat_t *vfat, uint16_t fcb_seg, uint16_t fcb_offs)
 
         /* We must match the file name in the FCB in which case
            no wildcards are allowed */
-        fcb_t far *fcb = _MK_FP(fcb_seg, fcb_offs);
+        fcb_t __far *fcb = _MK_FP(fcb_seg, fcb_offs);
+        drive_entry_t *drive;
          
         fcb->current_block = 0;
         fcb->rec_size = 128;
@@ -478,8 +599,13 @@ int vfat_fopen_fcb(vfs_vfat_t *vfat, uint16_t fcb_seg, uint16_t fcb_offs)
         if (fcb->drive_id == 0) {
                 /* set current drive ID, be aware that A = 1,
                    B = 2, C = 3, ... */
+                fcb->drive_id = current_drive;
         }
 
+        printf("fopen_fcb: drive_id = %u\r\n", fcb->drive_id);
+        printf("           file_name = %.8s.%.3s\r\n",
+               fcb->file_name,
+               fcb->file_ext);
         /* search current directory for the file name,
            the directory is stored in the open_file struct,
            and the FCB itself gets a pointer to the file
@@ -487,28 +613,44 @@ int vfat_fopen_fcb(vfs_vfat_t *vfat, uint16_t fcb_seg, uint16_t fcb_offs)
            only work with the file handle and also update
            the FCB if FCB functions are used */
 
-        
+        drive = &drive_table[fcb->drive_id];
+
+        vfat_dir_search(&drive->dev->vfat, drive->current_dir_lba, fcb);
+
+
+        return 0; 
 }
 
 
-void debug_dump_file(drive_entry_t *drive, unsigned long file_cluster)
+void debug_dump_file(void)
 {
         blk_drv_t *b;
         vfs_vfat_t *vfat;
         unsigned long lba, tmp;
         int i;
         char *s;
+        fcb_t fcb;
 
-        if (file_cluster < 2) {
-                return;
-        }
+        fcb_t __far *x = &fcb;
 
+        memset(x, 0, sizeof(fcb_t));
+        strncpy(x->file_name, "TEST    ", 8);
+        strncpy(x->file_ext, "TXT", 3); 
+
+        printf("%.8s.%.3s\r\n", x->file_name,
+                                x->file_ext);
+
+        vfat_fopen_fcb(_FP_SEG(x), _FP_OFF(x));
+
+        return;
+
+/*
         b = &drive->dev->drv_gen;
         vfat = &drive->dev->vfat;
-
+*/
         /* calculate LBA of cluster (cluster 2 is the first of the
            data area */
-
+/*
         lba = 0;
         tmp = file_cluster - 2;
         for (i = 0; i < vfat->cluster_size; i++) {
@@ -525,4 +667,6 @@ void debug_dump_file(drive_entry_t *drive, unsigned long file_cluster)
                 printf("%32.32s", s);
                 s += 32;
         }
+*/
+
 }
