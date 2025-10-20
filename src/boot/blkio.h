@@ -2,6 +2,8 @@
 #define BLKIO_H
 
 #include <stdint.h>
+#include "system.h"
+
 
 #define BLK_DEV_MAX     26
 #define MAX_DRIVES      26
@@ -19,7 +21,7 @@
 
 
 typedef struct blk_drv {
-        int (*init)(struct blk_drv *b, void *);
+        int (*init)(struct blk_drv *b, void *, equipment_t *);
         int (*read)(struct blk_drv *b, uint16_t seg_buffer,
                     uint16_t offs_buffer,
                     unsigned long addr, unsigned long size);
@@ -168,7 +170,7 @@ typedef struct {
 void blkio_init(uint8_t boot_drive);
 blk_dev_t *blkio_get_dev(uint8_t dev);
 
-int blkdrv_int13_init(struct blk_drv *b, void *p);
+int blkdrv_int13_init(struct blk_drv *b, void *p, equipment_t *e);
 
 void lba_to_chs(blk_drv_int13_t *d, unsigned long lba,
                 uint16_t *cyl, uint8_t *head, uint8_t *sec);

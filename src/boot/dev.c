@@ -28,7 +28,7 @@ static int bios_keyb_put(void *ctx, char c)
 
 static char vt_get(void *ctx)
 {
-        uint16_t k;
+        uint16_t k = 0;
 
         (void)ctx;
 

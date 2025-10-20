@@ -23,7 +23,7 @@ blk_buffer_t blk_buffer[BLK_BUFFERS];
 
 uint8_t sector_buffer[512];
 
-int blkdrv_int13_init(struct blk_drv *b, void *);
+int blkdrv_int13_init(struct blk_drv *b, void *, equipment_t *);
 int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
                       uint16_t offs_buffer,
                       unsigned long addr, unsigned long size);
@@ -160,7 +160,7 @@ typedef struct {
 geom_desc_t disk_geo;
 
 
-int blkdrv_int13_init(struct blk_drv *b, void *p)
+int blkdrv_int13_init(struct blk_drv *b, void *p, equipment_t *e)
 {
         blk_drv_int13_t *bd = (blk_drv_int13_t *)b;
         uint8_t drive = *(uint8_t *)p;
@@ -200,16 +200,18 @@ int blkdrv_int13_init(struct blk_drv *b, void *p)
         */
 
         /* Check if int13 extension is available */
+        int13_extended = 0;
 
-        rin._es = _SEG_DS();
-        rin._ax = 0x4100;
-        rin._dx = 0x0080;
-        rin._bx = 0x55AA;
-        disk_int86(&rin, &rout);
-        if ((rout._flags & FLAGS_CARRY) == 0) {
-                int13_extended = 1;
-        } else {
-                int13_extended = 0;
+        if (e->cpu_type >= CPU_TYPE_80386) {
+
+                rin._es = _SEG_DS();
+                rin._ax = 0x4100;
+                rin._dx = 0x0080;
+                rin._bx = 0x55AA;
+                disk_int86(&rin, &rout);
+                if ((rout._flags & FLAGS_CARRY) == 0) {
+                        int13_extended = 1;
+                }
         }
 
         if (drive >= 0x80 && int13_extended) {
@@ -230,8 +232,21 @@ int blkdrv_int13_init(struct blk_drv *b, void *p)
                 disk_int86(&rin, &rout);
                 if (rout._flags & FLAGS_CARRY) {
                         /* function returned with error */
+                        /* this might be a very old BIOS, so use BPB
+                           for floppy drives */
+
+                        /* TODO: read BPB and init with it */
+                        if (drive <= 3) {
+                                bd->hmax = 1;
+                                bd->cmax = 39;
+                                bd->smax = 9; 
+                                bd->ext_bios = 0;
+                                return 0;
+                        }
+
                         return 1;
                 }
+                printf("After int13, 08\r\n");
                 bd->hmax = rout._dx >> 8;
                 bd->cmax = ((rout._cx >> 5) & 3) * 256 +
                                 (rout._cx >> 8);

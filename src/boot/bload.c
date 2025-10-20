@@ -17,12 +17,13 @@ uint8_t boot_drive;
 
 void _cstart(void)
 {
+        /* TODO: init stack correctly for 64K systems */
         __asm {
                 mov ax, 70h
                 mov ds, ax
                 mov es, ax
                 mov ss, ax
-                mov sp, 0FFFFh
+                mov sp, 78FFh
                 mov boot_drive, dl
         }
         main();
@@ -31,8 +32,6 @@ void _cstart(void)
 
 const char *hello_msg = "\r\nBaseline, v0.1\r\n"
                         "(C)2025 by Andreas J. Reichel\r\n";
-
-
 
 int main(void)
 {
@@ -51,13 +50,16 @@ int main(void)
 
         res = dev_init();
 
-        printf("%s\r\n", hello_msg);
+        printf("%s\r\n", _MK_FP(_FP_SEG(hello_msg),
+                                _FP_OFF(hello_msg)));
 
         sys_get_equipment(&eqp);
 
         /* Initialize block IO and block devices */
 
         blkio_init(boot_drive);
+
+        printf("BLKIO initialized.\r\n");
 
         drive = 0;
         blkdev_counter = 0;
@@ -66,7 +68,7 @@ int main(void)
                 bdev = blkio_get_dev(drive);
                 /* init BIOS int13 driver for the drive */
                 blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
-                                  (void *)&drive);
+                                  (void *)&drive, eqp);
                 bdev->has_parttable = 0;
                 bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "FD%u", drive);
@@ -78,7 +80,7 @@ int main(void)
                 bdev = blkio_get_dev(blkdev_counter);
                 /* init BIOS int13 driver for the drive */
                 blkdrv_int13_init((blk_drv_t *)&bdev->drv_int13,
-                                  (void *)&drive);
+                                  (void *)&drive, eqp);
                 bdev->has_parttable = 1;
                 bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "HD%u", drive - 0x80);
@@ -150,9 +152,7 @@ int main(void)
                 }
         }
 
-        puts("Boot drive is ");
-        putc(boot_drive + 'A');
-        puts(":\r\n");
+        printf("Boot drive is %c:\r\n", boot_drive + 'A');
 
         debug_dump_dir(&drive_table[boot_drive]);
         debug_dump_file();

@@ -35,11 +35,12 @@
 #define PRINTF_OUTPUT_LENGTH 9
 #define PRINTF_TYPE_UNKNOWN 10
 
+#define STRLEN_MAX 128
 
 static int pf_strlen(char __far *s)
 {
         int l = 0;
-        while (*(s++)) l++;
+        while (*(s++) && l < STRLEN_MAX) l++;
         return l;
 }
 

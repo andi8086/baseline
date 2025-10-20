@@ -53,6 +53,17 @@ void sys_get_equipment(equipment_t **e)
                 equipment.lpt_io_addr[i] = *(uint16_t far *)LPT_IO_ADDR(i);
         }
 
+
+        switch (equipment.cpu_type) {
+        case CPU_TYPE_8086: printf("CPU: 8086/8088\r\n"); break;
+        case CPU_TYPE_V20: printf("CPU: NEC V20/V30\r\n"); break;
+        case CPU_TYPE_80186: printf("CPU: 80186/80188\r\n"); break;
+        case CPU_TYPE_80286: printf("CPU: 80286\r\n"); break;
+        case CPU_TYPE_80386: printf("CPU: 80386\r\n"); break;
+        default: break;
+        }
+
+
         puts("COM Ports: ");
         for (i = 0; i < equipment.num_com_ports; i++) {
                 printf("COM%u at %03Xh", i + 1, equipment.com_io_addr[i]);
