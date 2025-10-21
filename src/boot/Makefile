@@ -23,10 +23,11 @@ boot360k.bin: boot360k.asm
 # -zq: quiet
 # -zp1: byte-pack structures
 # -fpi: 80x87 with emulation
+# -osh: optimize for size and do expensive optimizations
 
 %.o: %.c
 	$(info WCC $@)
-	@wcc -0 -d0 -s -wx -zl -ms -zq -zp1 $<
+	@wcc -0 -d0 -s -wx -zl -ms -zq -zp1 -osh $<
 
 %.o: %.asm
 	$(info WASM $@)
