@@ -34,5 +34,6 @@ unsigned short _FP_SEG(const volatile void __far *);
 void strncpy(void far *dst, void far *src, uint16_t count);
 void memset(void far *dst, uint8_t val, uint16_t count);
 int strncmp(char __far *dst, char __far *src, uint16_t count);
+void memcpy(void __far *dst, void __far *src, uint16_t count);
 
 #endif

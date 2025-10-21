@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "conio.h"
+#include "int86.h"
 
 
 chardev_t keyboard;
@@ -84,3 +85,22 @@ int dev_init(void)
         return 0;
 }
 
+
+void ser_init(void)
+{
+        regs86_t rin, rout;        
+
+        rin._ax = 0x0E7;
+        rin._dx = 0;
+        ser_int86(&rin, &rout);
+}
+
+void ser_putc(char c)
+{
+        regs86_t rin, rout;
+
+        rin._ax = 0x0100 | c;
+        rin._dx = 0;
+
+        ser_int86(&rin, &rout);
+}

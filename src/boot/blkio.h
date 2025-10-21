@@ -9,6 +9,7 @@
 #define MAX_DRIVES      26
 #define MAX_PATH        128
 #define BLK_BUFFERS     10
+#define MAX_FILES       10
 
 /* This defines the block device I/O Layer that is responsible
    for direct block device acces through a corresponding driver
@@ -88,7 +89,12 @@ typedef struct {
         uint16_t file_size_lo;
         uint16_t file_size_hi;
         datetime_t datetime;
-        uint8_t reserved[8];
+        /* internal area */
+        uint8_t file_handle;
+        uint8_t dir_rel;
+        unsigned long int dir_lba;
+        uint8_t reserved[2];
+        /* end internal area */
         uint8_t seq_rec_number;
         uint16_t rnd_rec_num_lo;
         uint16_t rnd_rec_num_hi;
@@ -143,11 +149,12 @@ typedef struct blk_dev {
 } blk_dev_t;
 
 typedef struct {
-        uint8_t buffer[512];
         int drive;
         unsigned long lba;
         int dirty; 
         unsigned long acc;
+        blk_drv_t *drv;
+        uint8_t buffer[512];
 } blk_buffer_t;
 
 typedef struct {
@@ -188,8 +195,28 @@ typedef struct {
         unsigned long current_dir_lba;
 } drive_entry_t;
 
+
 extern uint8_t max_drive;
 extern drive_entry_t drive_table[MAX_DRIVES];
+
+
+typedef struct {
+        vfat_dir_entry_t dire;
+        unsigned long int dir_lba;
+        unsigned int dir_rel;
+        uint8_t ref_count;
+        blk_drv_t *drv;
+        vfs_vfat_t *vfat;
+        /* sequential file access */
+        unsigned long file_ptr_seq;
+        unsigned long current_lba_seq;
+        uint8_t current_rel_seq;
+        /* random file access */
+        unsigned long file_ptr_rnd;
+        unsigned long current_lba_rnd;
+        uint8_t current_rel_rnd;
+} file_info_t;
+
 
 
 void debug_dump_dir(drive_entry_t *drive);

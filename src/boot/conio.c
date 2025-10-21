@@ -25,6 +25,15 @@ void puts(char *s)
         }
 }
 
+void ser_puts(char *s)
+{
+        while (*s) {
+                ser_putc(*s);
+                s++;
+        }
+}
+
+
 
 static char printf_buffer[128];
 
@@ -40,4 +49,18 @@ void printf(char __far *fmt, ...)
         va_end(p);
 
         puts(printf_buffer);
+}
+
+
+void ser_printf(char __far *fmt, ...)
+{
+        va_list p;
+        char __far *buff = _MK_FP(_FP_SEG(printf_buffer),
+                                  _FP_OFF(printf_buffer));
+
+        va_start(p, fmt);
+        c_vsnprintf(buff, 128, fmt, p);
+        va_end(p);
+
+        ser_puts(printf_buffer);
 }

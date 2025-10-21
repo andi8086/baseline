@@ -21,6 +21,8 @@ static uint8_t blkio_maxdev = BLK_DEV_MAX;
 
 blk_buffer_t blk_buffer[BLK_BUFFERS];
 
+file_info_t open_files[MAX_FILES];
+
 uint8_t sector_buffer[512];
 
 int blkdrv_int13_init(struct blk_drv *b, void *, equipment_t *);
@@ -75,12 +77,14 @@ blk_buffer_t *blk_buffer_get(void)
         unsigned long acc1 = UINT32_MAX;
         int acc0_idx;
         int acc1_idx;
-        int drive;
         blk_drv_t *drv; 
 
         /* first look for a free one */
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].drive == -1) {
+                        blk_buffer[i].acc++;
+                        ser_printf("Unused cache entry found (#%u)\r\n",
+                               i);
                         return &blk_buffer[i];
                 }
         }
@@ -88,6 +92,10 @@ blk_buffer_t *blk_buffer_get(void)
         /* look for non-dirty buffer */
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].dirty == 0) {
+                        bzero(&blk_buffer[i], sizeof(blk_buffer_t));
+                        blk_buffer[i].drive = -1;
+                        ser_printf("Reusing non-dirty cache (#%u)\r\n",
+                               i);
                         return &blk_buffer[i];
                 }
         }
@@ -105,6 +113,8 @@ blk_buffer_t *blk_buffer_get(void)
                 } 
         }
 
+        ser_printf("Dropping oldest cache #%u\r\n", acc0_idx);
+
         /* subtract acc1 from all acc fields */
         for (i = 0; i < BLK_BUFFERS; i++) {
                 blk_buffer[i].acc -= acc1;
@@ -112,8 +122,8 @@ blk_buffer_t *blk_buffer_get(void)
 
         /* flush buffer acc0_idx if dirty */
         if (blk_buffer[acc0_idx].dirty) {
-                drv = &drive_table[blk_buffer[acc0_idx].drive].dev->drv_gen;
-
+                ser_printf("Flusing oldest cache #%u\r\n", acc0_idx);
+                drv = blk_buffer[acc0_idx].drv;
                 drv->write(drv, _FP_SEG(&blk_buffer[acc0_idx].buffer),
                            _FP_OFF(&blk_buffer[acc0_idx].buffer),
                            blk_buffer[acc0_idx].lba, 512);
@@ -133,6 +143,9 @@ blk_buffer_t *blk_buffer_search(int drive, unsigned long lba)
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].drive == drive &&
                     blk_buffer[i].lba == lba) {
+                        ser_printf("sector is in cache #%u ", i);
+                        ser_printf("(drive = %u, lba = %lu)\r\n",
+                                    drive, lba);
                         return &blk_buffer[i];
                 }
         }
@@ -302,6 +315,9 @@ int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
         uint8_t sec;
         uint8_t head;
         regs86_t rin, rout;
+        blk_buffer_t *cache;
+        uint16_t seg_cache;
+        uint16_t off_cache;
 
         if (DEBUG) {
                 printf("buffer = %lp\r\n",
@@ -311,17 +327,39 @@ int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
 
         lba_to_chs(drv, addr, &cyl, &head, &sec);
 
+        ser_printf("blkdrv_int13_read: LBA address %lu is C/H/S %u/%u/%u\r\n",
+                   addr, cyl, head, sec);
+
         if (DEBUG) {
                 printf("cyl = %u, head = %u, sec = %u\r\n",
                        cyl, head, sec);
         }
 
+        /* check if we have buffered that sector */
+        cache = blk_buffer_search(drv->drive_number, addr);
+
+        if (cache) {
+                seg_cache = _FP_SEG(cache->buffer);
+                off_cache = _FP_OFF(cache->buffer);
+                goto copy_from_cache;
+        }
+
+        /* not cached yet, flush the oldest by
+           requesting a new one */
+        cache = blk_buffer_get();
+        cache->drive = drv->drive_number;
+        cache->lba = addr;
+        cache->drv = b;
+
+        seg_cache = _FP_SEG(cache->buffer);
+        off_cache = _FP_OFF(cache->buffer);
+
         rin._ax = 0x0200 | (size & 0xFF);
         rin._dx = ((uint16_t)head << 8) | drv->drive_number;
         rin._cx = ((uint16_t)cyl << 8) |
                   (((uint16_t)cyl >> 8) << 6) | (sec & 63);
-        rin._bx = offs_buffer;
-        rin._es = seg_buffer;
+        rin._bx = off_cache;
+        rin._es = seg_cache;
 
         if (DEBUG) {
                 printf("AX = %04x, BX = %04x, CX = %04x, DX = %04x, "
@@ -334,6 +372,14 @@ int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
         if (rout._flags & FLAGS_CARRY) {
                 return 1;
         }
+copy_from_cache:
+        ser_printf("Copy from cache %lp to buffer %lp\r\n", 
+                        _MK_FP(seg_cache, off_cache),
+                        _MK_FP(seg_buffer, offs_buffer));
+        /* copy into destination buffer */
+        memcpy(_MK_FP(seg_buffer, offs_buffer),
+               _MK_FP(seg_cache, off_cache),
+               512);
 
         return 0;
 }
@@ -482,27 +528,6 @@ void debug_dump_dir(drive_entry_t *drive)
 }
 
 
-typedef struct {
-        uint8_t ref_count;
-        vfs_vfat_t *vfat;
-        unsigned long dir_lba;
-        uint8_t rel_entry;
-        unsigned long start_lba;
-
-        /* sequential file access */
-        unsigned long file_ptr_seq;
-        unsigned long current_lba_seq;
-        uint8_t current_rel_sector_seq;
-        /* random file access */
-        unsigned long file_ptr_rnd;
-        unsigned long current_lba_rnd;
-        uint8_t current_rel_sector_rnd;
-} file_handle_t;
-
-#define DOS_FILES 16
-file_handle_t open_files[DOS_FILES];
-
-
 unsigned long cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
 {
         unsigned long lba = 0;
@@ -534,16 +559,16 @@ int vfat_file_open(vfs_vfat_t *vfat, vfat_dir_entry_t *e, unsigned long dir_lba,
                 file_cluster = e->start_cluster;
         }
 
-        for (i = 0; i < DOS_FILES; i++) {
+        for (i = 0; i < MAX_FILES; i++) {
                 if (open_files[i].ref_count == 0) {
                         break;
                 }
         }
 
-        if (i == DOS_FILES) {
+        if (i == MAX_FILES) {
                 return -1;
         }
-
+/*
         open_files[i].ref_count++;
 
         open_files[i].vfat = vfat;
@@ -558,7 +583,7 @@ int vfat_file_open(vfs_vfat_t *vfat, vfat_dir_entry_t *e, unsigned long dir_lba,
         open_files[i].file_ptr_rnd = 0;
         open_files[i].current_lba_rnd = 0;
         open_files[i].current_rel_sector_rnd = 0;
-
+*/
         return i;
 }
 
@@ -581,19 +606,49 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
         blk_drv_t *b = &drive->dev->drv_gen;
 
         if (dir_lba < vfat->data_start) {
-                /* must be root dir */
+                /* must be root dir, hence do not limit directory
+                   length via FAT chain, but via root_dir_entries  */
  
                 for (entry = 0; entry < vfat->root_dir_entries; entry++) {
                         if (entry % 16 == 0) {
-        /*                        b->read(b, _FP_SEG(dta), _FP_OFF(dta),
+                                b->read(b, _FP_SEG(dta), _FP_OFF(dta),
                                         dir_lba + entry / 16, 1);
-        */
-       //                         dire = (vfat_dir_entry_t __far *)dta;
+                        }
+                        dire = (vfat_dir_entry_t __far *)dta + entry % 16;
+
+                        if (strncmp((char __far *)dire, (char __far *)fcb + 1,
+                            11) == 0) {
+                                ser_printf("Dir entry found! File starts at "
+                                           "cluster %lu\r\n", dire->start_cluster);
+                                /* create a file open entry and return
+                                   a handle */
+                                if (entry % 16) {
+                                        /* if zero, it is already there */
+                                        memcpy(dta, dire, sizeof(vfat_dir_entry_t));
+                                }
+                                fcb->dir_lba = dir_lba + entry / 16;
+                                fcb->dir_rel = entry % 16; 
+
+                                /* TODO: update FCB */
+                                return 0; 
                         }
 
-//                        dire++; 
+                        dire++; 
                 }
+        } else {
+
+                /* we must iterate the directory like a file with FAT chain */
+
+
+
+
+
+
+
+
         }
+
+        return -1;
 } 
 
 
@@ -605,6 +660,9 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         /* We must match the file name in the FCB in which case
            no wildcards are allowed */
+        vfat_dir_entry_t __far *dire;
+        int res;
+
         fcb_t __far *fcb = _MK_FP(fcb_seg, fcb_offs);
         drive_entry_t *drive;
          
@@ -630,8 +688,15 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         drive = &drive_table[fcb->drive_id];
 
-        vfat_dir_search(&drive->dev->vfat, drive->current_dir_lba, fcb);
+        res = vfat_dir_search(&drive->dev->vfat, drive->current_dir_lba, fcb);
+        if (res == -1) {
+                return -1;
+        };
 
+        dire = (vfat_dir_entry_t *)dta;
+
+        ser_printf("dir lba: %lu, dir_rel: %u, cluster: %u\r\n",
+                   fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
 
         return 0; 
 }

@@ -31,5 +31,7 @@ typedef struct {
 extern console_t defconsole;
 
 int dev_init(void);
+void ser_putc(char c);
+void ser_init(void);
 
 #endif

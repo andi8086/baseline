@@ -59,3 +59,14 @@ int strncmp(char __far *dst, char __far *src, uint16_t count)
         }
         return 0;
 }
+
+
+void memcpy(void __far *dst, void __far *src, uint16_t count)
+{
+        char __far *d = (char __far *)dst;
+        char __far *s = (char __far *)src;
+
+        while (count--) {
+                *(d++) = *(s++);
+        }
+}

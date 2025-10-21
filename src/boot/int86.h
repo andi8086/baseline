@@ -26,7 +26,7 @@ typedef struct {
 
 void vid_int86(regs86_t *r_in, regs86_t *r_out);
 void disk_int86(regs86_t *r_in, regs86_t *r_out);
-
+void ser_int86(regs86_t *r_in, regs86_t *r_out);
 
 
 #endif

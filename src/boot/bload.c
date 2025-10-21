@@ -49,6 +49,7 @@ int main(void)
 
 
         res = dev_init();
+        ser_init();
 
         printf("%s\r\n", _MK_FP(_FP_SEG(hello_msg),
                                 _FP_OFF(hello_msg)));
@@ -72,7 +73,6 @@ int main(void)
                 bdev->has_parttable = 0;
                 bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "FD%u", drive);
-                drv_letter++;
                 blkdev_counter++;
         }
 
@@ -84,7 +84,6 @@ int main(void)
                 bdev->has_parttable = 1;
                 bdev->type = BLK_DEV_PHYSICAL;
                 c_snprintf(bdev->name, 8, "HD%u", drive - 0x80);
-                drv_letter++;
                 blkdev_counter++;
         }
 
@@ -135,7 +134,6 @@ int main(void)
 
                         drive_table[max_drive].dev = bdev;
                         drive_table[max_drive].drive_letter = drv_letter;
-                        max_drive++;
 
                         /* round up! */
                         bdev->vfat.data_start = bdev->vfat.root_dir_lba +
@@ -146,6 +144,7 @@ int main(void)
                         drive_table[max_drive].current_dir_lba =
                                 bdev->vfat.root_dir_lba;
 
+                        max_drive++;
                 } else {
 
 
@@ -156,6 +155,8 @@ int main(void)
 
         debug_dump_dir(&drive_table[boot_drive]);
         debug_dump_file();
+        debug_dump_dir(&drive_table[boot_drive]);
+
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {
                 bdev = blkio_get_dev(drive);
