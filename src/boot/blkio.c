@@ -619,7 +619,7 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
                         if (strncmp((char __far *)dire, (char __far *)fcb + 1,
                             11) == 0) {
                                 ser_printf("Dir entry found! File starts at "
-                                           "cluster %lu\r\n", dire->start_cluster);
+                                           "cluster %u\r\n", dire->start_cluster);
                                 /* create a file open entry and return
                                    a handle */
                                 if (entry % 16) {
