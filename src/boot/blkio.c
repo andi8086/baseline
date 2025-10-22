@@ -373,9 +373,6 @@ int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
                 return 1;
         }
 copy_from_cache:
-        ser_printf("Copy from cache %lp to buffer %lp\r\n", 
-                        _MK_FP(seg_cache, off_cache),
-                        _MK_FP(seg_buffer, offs_buffer));
         /* copy into destination buffer */
         memcpy(_MK_FP(seg_buffer, offs_buffer),
                _MK_FP(seg_cache, off_cache),
@@ -664,6 +661,62 @@ unsigned long int next_cluster(vfs_vfat_t *vfat, unsigned long int cluster)
 }
 
 
+unsigned long vfat_free_space(vfs_vfat_t *vfat)
+{
+        unsigned long int space = 0, tmp = 0;
+        unsigned c;
+        unsigned int old_s = 0;
+        unsigned int max_cluster;
+        blk_drv_int13_t *b = (blk_drv_int13_t *)vfat->drv;
+
+        /* calculate maximum cluster number */
+        max_cluster = (b->cmax + 1) *
+                      (b->hmax + 1) * (b->smax);
+
+        max_cluster -= vfat->data_start;
+        max_cluster /= vfat->cluster_size;
+        max_cluster++;
+
+        ser_printf("Max cluster is %u\r\n", max_cluster);
+
+        for (c = 2; c <= max_cluster; c++) {
+
+                unsigned int fat_offset = c + (c >> 1);
+                unsigned int s = vfat->fat_start + (fat_offset / 512);
+                unsigned int e = fat_offset % 512;
+                unsigned int v;
+
+                if (s != old_s) {
+                        vfat->drv->read(vfat->drv, _FP_SEG(FAT_table), _FP_OFF(FAT_table),
+                                       s, 1);
+                        vfat->drv->read(vfat->drv, _FP_SEG(&FAT_table[512]),
+                                                  _FP_OFF(&FAT_table[512]),
+                                       s + 1, 1);
+                        old_s = s;
+                } 
+                v = *(unsigned short *)&FAT_table[e];
+                v = (c & 1) ? v >> 4 : v & 0xFFF; 
+
+                if (v == 0) {
+                        space += 1;                        
+                }
+        }
+
+        ser_printf("%u clusters free\r\n", space);
+
+        for (c = 0; c < vfat->cluster_size; c++) {
+                tmp += space;
+        }
+        space = tmp;
+        tmp = 0;
+       
+        space <<= 9; 
+        
+        return space;
+}
+
+
+
 int dir_entry_valid(char __far *e)
 {
         if (*e != 0 && *e != 0x5e && *e != 0x20 && *e != 0xF6) {
@@ -727,8 +780,6 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
  
                 for (; entry < vfat->root_dir_entries; entry++) {
                         if (entry % 16 == 0 || must_read) {
-                                ser_printf("Reading lba %lu\r\n",
-                                        dir_lba + entry / 16);
                                 b->read(b, _FP_SEG(dta), _FP_OFF(dta),
                                         dir_lba + entry / 16, 1);
                                 must_read = 0;

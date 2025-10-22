@@ -64,3 +64,19 @@ void ser_printf(char __far *fmt, ...)
 
         ser_puts(printf_buffer);
 }
+
+
+void buffered_input(char __far *buffer)
+{
+        char __far *dst = buffer;
+
+        while (dst - buffer < 128) {
+                *dst = getc();
+                if (*dst == 13) {
+                        *dst = 0;
+                        return;
+                }
+                putc(*dst);
+                dst++;
+        }
+}

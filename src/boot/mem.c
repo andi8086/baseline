@@ -1,7 +1,7 @@
 #include "mem.h"
 
 #include <stdint.h>
-
+#include <stddef.h>
 
 
 /*
@@ -69,4 +69,45 @@ void memcpy(void __far *dst, void __far *src, uint16_t count)
         while (count--) {
                 *(d++) = *(s++);
         }
+}
+
+
+int strlen(char __far *str)
+{
+        int l = 0;
+
+        while (*(str++)) {
+                l++;
+        }
+        return l;
+}
+
+
+char __far *strtok(char __far *str, char *sep)
+{
+        static char __far *token;
+        static char __far *next;
+        char *c;
+
+        if (str) {
+                token = str;
+                next = token;
+        } else {
+                token = next;
+        }
+
+        while (next && *next) {
+                c = sep;
+                while (*c) {
+                        if (*next == *c) {
+                                *next = 0;
+                                next++;
+                                return token;
+                        } 
+                        c++;
+                }   
+                next++;
+        }
+        next = NULL;
+        return token;
 }

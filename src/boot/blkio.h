@@ -218,9 +218,12 @@ typedef struct {
         uint8_t current_rel_rnd;
 } file_info_t;
 
+int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
+                    fcb_t __far *fcb);
 
+unsigned long vfat_free_space(vfs_vfat_t *vfat);
 
-void debug_dump_dir(vfat_dir_entry_t __far *e);
+void debug_dump_dir_entry(vfat_dir_entry_t __far *e);
 void debug_dump_file(void);
 
 #endif

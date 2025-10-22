@@ -14,8 +14,17 @@ console_t defconsole;
 
 static char bios_keyb_get(void *ctx)
 {
+        char ich;
+
         (void)ctx;
-        return 0;
+
+        _asm {
+                "xor ax, ax"
+                "int 16h"
+                "mov ich, al"
+        }
+
+        return ich;
 }
 
 

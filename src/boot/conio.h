@@ -9,4 +9,6 @@ void putc(char c);
 void printf(char __far *fmt, ...);
 void ser_printf(char __far *fmt, ...);
 
+void buffered_input(char __far *buffer);
+
 #endif

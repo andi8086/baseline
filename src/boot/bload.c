@@ -8,6 +8,8 @@
 #include "system.h"
 #include "mem.h"
 
+#include <stddef.h>
+
 
 int main(void);
 uint16_t read_far16(uint16_t seg, uint16_t offs);
@@ -30,8 +32,13 @@ void _cstart(void)
 }
 
 
+void command_dir(char __far *param);
+
+
 const char *hello_msg = "\r\nBaseline, v0.1\r\n"
                         "(C)2025 by Andreas J. Reichel\r\n";
+
+char input_buffer[128];
 
 int main(void)
 {
@@ -152,10 +159,25 @@ int main(void)
                 }
         }
 
-        printf("Boot drive is %c:\r\n", boot_drive + 'A');
-
 //        debug_dump_dir(&drive_table[boot_drive]);
-        debug_dump_file();
+//        debug_dump_file();
+        
+        while (1) {
+                char __far *s;
+
+                printf("\r\n%c>", boot_drive + 'A');
+                buffered_input(input_buffer);
+
+                s = strtok(input_buffer, " ");
+
+                if (strlen(s) == 3 && strncmp(s, "dir", 3) == 0) {
+                        if (s = strtok(NULL, " ")) {
+                                printf("param: %s\r\n", s);
+                        } else {
+                                command_dir(NULL);
+                        }
+                }
+        } 
 
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {
@@ -187,3 +209,30 @@ kernel_halt:
         return 0;
 }
 
+
+void command_dir(char __far *param)
+{
+        fcb_t fcb;
+ 
+        drive_entry_t *drive;
+        extern uint8_t current_drive;
+        extern uint8_t __far *dta;
+
+        memset(&fcb, 0, sizeof(fcb_t));
+
+        fcb.drive_id = current_drive;
+        drive = &drive_table[fcb.drive_id - 1];
+        
+        strncpy(fcb.file_name, "????????", 8);
+        strncpy(fcb.file_ext, "???", 3); 
+
+        printf("\r\n");
+        printf("\r\n");
+        while (vfat_dir_search(&drive->dev->vfat,
+                drive->current_dir_cluster, &fcb) == 0) {
+                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
+        }
+        printf("\r\n");
+        printf("       %lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
+
+}
