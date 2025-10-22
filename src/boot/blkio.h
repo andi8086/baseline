@@ -54,6 +54,7 @@ typedef struct {
         unsigned long root_dir_lba;
         uint16_t root_dir_entries;
         unsigned long data_start;
+        blk_drv_t *drv;
 } vfs_vfat_t;
 
 typedef struct {
@@ -192,7 +193,7 @@ typedef struct {
         char drive_letter;
         blk_dev_t *dev;
         char current_dir[MAX_PATH];
-        unsigned long current_dir_lba;
+        unsigned long current_dir_cluster;
 } drive_entry_t;
 
 

@@ -63,4 +63,5 @@ boot360k: boot360k.bin bload.sys
 	mcopy -i f360k.bin bload.c ::/
 	mcopy -i f360k.bin blkio.c ::/
 	mcopy -i f360k.bin test.txt ::/
+	mcopy -i f360k.bin test/* ::/test
 

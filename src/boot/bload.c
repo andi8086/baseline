@@ -139,10 +139,11 @@ int main(void)
                         bdev->vfat.data_start = bdev->vfat.root_dir_lba +
                                 (bpb->root_dir_entries + 15) / 16;
 
+                        bdev->vfat.drv = &bdev->drv_gen;
+
                         strncpy(drive_table[max_drive].current_dir,
                                 "\\", 2);
-                        drive_table[max_drive].current_dir_lba =
-                                bdev->vfat.root_dir_lba;
+                        drive_table[max_drive].current_dir_cluster = 0;
 
                         max_drive++;
                 } else {
@@ -155,7 +156,6 @@ int main(void)
 
         debug_dump_dir(&drive_table[boot_drive]);
         debug_dump_file();
-        debug_dump_dir(&drive_table[boot_drive]);
 
 /*
         for (drive = 0; drive < blkdev_counter; drive++) {

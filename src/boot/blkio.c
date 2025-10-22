@@ -479,7 +479,6 @@ void debug_dump_dir(drive_entry_t *drive)
 
         b = &drive->dev->drv_gen;
 
-
         for (entry = 0; entry < drive->dev->vfat.root_dir_entries; entry++) {
                 if (entry % 16 == 0) {
                         b->read(b, _SEG_DS(), (uint16_t)sector_buffer,
@@ -528,13 +527,13 @@ void debug_dump_dir(drive_entry_t *drive)
 }
 
 
-unsigned long cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
+/*unsigned long cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
 {
         unsigned long lba = 0;
         unsigned long tmp = cluster - 2;
         int i;
 
-        /* cannot use 32-bit multiply */
+         cannot use 32-bit multiply
         for (i = 0; i < vfat->cluster_size; i++) {
                 lba += tmp;
         }
@@ -543,11 +542,13 @@ unsigned long cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
 
         return lba;
 }
+*/
 
 /* opening a file ALWAYS goes over the directory contents,
    hence we can always provide the parameters except if
    we open the root directory itself, or a special system file */
-int vfat_file_open(vfs_vfat_t *vfat, vfat_dir_entry_t *e, unsigned long dir_lba,
+int vfat_file_open(vfs_vfat_t *vfat, vfat_dir_entry_t *e,
+                   unsigned long dir_lba,
                    int dir_entry_rel)
 {
         int i;
@@ -596,7 +597,92 @@ void vfat_file_close(int file_handle)
 }
 
 
-int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
+unsigned long lba_to_cluster(vfs_vfat_t *vfat, unsigned long lba, uint8_t *rel)
+{
+        unsigned short shift_factor;
+        unsigned long int cluster;
+        unsigned long int tmp;
+
+        if (lba < vfat->data_start) {
+                return 0;
+        }
+
+        switch (vfat->cluster_size) {
+        case 1: shift_factor = 0; break;
+        case 2: shift_factor = 1; break;
+        case 4: shift_factor = 2; break;
+        case 8: shift_factor = 3; break;
+        case 16: shift_factor = 4; break;
+        case 32: shift_factor = 5; break;
+        case 64: shift_factor = 6; break;
+        case 128: shift_factor = 7; break;
+        default:
+                return 0;
+        }
+
+
+        /* data start is always cluster #2 */
+        tmp = lba - vfat->data_start;
+        cluster = tmp >> shift_factor;
+        *rel = tmp & (vfat->cluster_size - 1);
+
+        return cluster + 2;
+}
+
+
+unsigned long int cluster_to_lba(vfs_vfat_t *vfat, unsigned long cluster)
+{
+        uint8_t shift_factor;
+
+        switch (vfat->cluster_size) {
+        case 1: shift_factor = 0; break;
+        case 2: shift_factor = 1; break;
+        case 4: shift_factor = 2; break;
+        case 8: shift_factor = 3; break;
+        case 16: shift_factor = 4; break;
+        case 32: shift_factor = 5; break;
+        case 64: shift_factor = 6; break;
+        case 128: shift_factor = 7; break;
+        default:
+                return 0;
+        }
+
+        return vfat->data_start + ((cluster - 2) << shift_factor);
+}
+
+
+unsigned char FAT_table[1024];
+
+
+unsigned long int next_cluster(vfs_vfat_t *vfat, unsigned long int cluster)
+{
+        unsigned long int res;
+        unsigned int c = cluster & 0xFFFF;
+
+        unsigned int fat_offset = c + (c >> 1);
+        unsigned int s = vfat->fat_start + (fat_offset / 512);
+        unsigned int e = fat_offset % 512;
+        unsigned int v;
+
+        vfat->drv->read(vfat->drv, _FP_SEG(FAT_table), _FP_OFF(FAT_table),
+                       s, 1);
+        vfat->drv->read(vfat->drv, _FP_SEG(&FAT_table[512]),
+                                  _FP_OFF(&FAT_table[512]),
+                       s + 1, 1);
+       
+        v = *(unsigned short *)&FAT_table[e];
+        v = (c & 1) ? v >> 4 : v & 0xFFF; 
+
+        if (v >= 0xFF8) {
+                /* end of chain */
+                return 0;
+        }
+
+        return v;
+}
+
+
+int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                     fcb_t __far *fcb)
 {
 
@@ -604,22 +690,48 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
         uint16_t entry;
         drive_entry_t *drive = &drive_table[fcb->drive_id - 1];
         blk_drv_t *b = &drive->dev->drv_gen;
+        unsigned long dir_lba;
+        uint8_t rel;
+        int must_read = 0;
 
-        if (dir_lba < vfat->data_start) {
+        if (dir_cluster == 0) {
+
+                /* extract continuation point from FCB */
+                dir_lba = vfat->root_dir_lba;
+                if (fcb->dir_lba) {
+                        entry = (fcb->dir_lba - dir_lba) << 4;
+                        entry += fcb->dir_rel;
+                        must_read = 1;
+
+                        entry++;
+                        if (entry >= vfat->root_dir_entries) {
+                                return -1;
+                        }
+                } else {
+                        entry = 0;
+                }
                 /* must be root dir, hence do not limit directory
                    length via FAT chain, but via root_dir_entries  */
  
-                for (entry = 0; entry < vfat->root_dir_entries; entry++) {
-                        if (entry % 16 == 0) {
+                for (; entry < vfat->root_dir_entries; entry++) {
+                        if (entry % 16 == 0 || must_read) {
+                                ser_printf("Reading lba %lu\r\n",
+                                        dir_lba + entry / 16);
                                 b->read(b, _FP_SEG(dta), _FP_OFF(dta),
                                         dir_lba + entry / 16, 1);
+                                must_read = 0;
                         }
                         dire = (vfat_dir_entry_t __far *)dta + entry % 16;
 
-                        if (strncmp((char __far *)dire, (char __far *)fcb + 1,
-                            11) == 0) {
-                                ser_printf("Dir entry found! File starts at "
-                                           "cluster %u\r\n", dire->start_cluster);
+                        if (dire->name[0] != 0 &&
+                            dire->name[0] != ' ' &&
+                            dire->name[0] != 0x5e &&
+                            dire->name[0] != 0xf6) {
+                        //if (strncmp((char __far *)dire, (char __far *)fcb + 1,
+                        //    11) == 0) {
+                        //        ser_printf("Dir entry found! File starts at "
+                        //                   "cluster %u\r\n", dire->start_cluster);
+                                printf("%.11s\r\n", (char __far *)dire);
                                 /* create a file open entry and return
                                    a handle */
                                 if (entry % 16) {
@@ -629,25 +741,85 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_lba,
                                 fcb->dir_lba = dir_lba + entry / 16;
                                 fcb->dir_rel = entry % 16; 
 
-                                /* TODO: update FCB */
                                 return 0; 
                         }
 
                         dire++; 
                 }
+                
         } else {
 
+                if (fcb->dir_lba) {
+                        dir_cluster = lba_to_cluster(vfat, fcb->dir_lba, &rel);
+                        entry = fcb->dir_rel;
+
+                        entry++;
+                        /* we need the next entry */
+                        if (entry > 15) {
+                                entry = 0;
+                                /* next sector */
+                                rel++;
+                                if (rel == vfat->cluster_size) {
+                                        /* next cluster */
+                                        rel = 0;
+                                        dir_cluster =
+                                                next_cluster(vfat, dir_cluster);
+                                        if (!dir_cluster) {
+                                                /* end of dir */
+                                                return -1;
+                                        }
+                                }
+                        }
+
+                        must_read = 1;
+                } else {
+                        // dir_cluster already set
+                        rel = 0;
+                        entry = 0;
+                }
+
+
                 /* we must iterate the directory like a file with FAT chain */
+                do {
+                        dir_lba = cluster_to_lba(vfat, dir_cluster);
 
+                        ser_printf("dir: lba is %lu\r\n", dir_lba + rel);
 
-
-
-
-
-
-
+                        for (; rel < vfat->cluster_size; rel++) {
+                                for (; entry < 16; entry++) {
+                                        if ((entry & 15) == 0 || must_read) {
+                                                b->read(b,
+                                                        _FP_SEG(dta),
+                                                        _FP_OFF(dta),
+                                                        dir_lba + rel +
+                                                        (entry >> 4),
+                                                        1);
+                                                must_read = 0;
+                                        }
+                                        dire = (vfat_dir_entry_t __far *)dta +
+                                               entry % 16;
+                                        if (dire->name[0] != 0 &&
+                                            dire->name[0] != ' ' &&
+                                            dire->name[0] != 0x5e &&
+                                            dire->name[0] != 0xf6) {
+                                                printf("%.11s\r\n",
+                                                        (char __far *)dire);
+                                                fcb->dir_lba = dir_lba +
+                                                        rel +
+                                                     (entry >> 4);
+                                                fcb->dir_rel = entry % 16; 
+                                                if (entry % 16) {
+                                                        /* if zero, it is already there */
+                                                        memcpy(dta, dire, sizeof(vfat_dir_entry_t));
+                                                }
+                                                return 0;
+                                        }
+                                }
+                                entry = 0;
+                        }
+                        rel = 0;
+                } while (dir_cluster = next_cluster(vfat, dir_cluster));
         }
-
         return -1;
 } 
 
@@ -686,18 +858,28 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
            only work with the file handle and also update
            the FCB if FCB functions are used */
 
-        drive = &drive_table[fcb->drive_id];
+        drive = &drive_table[fcb->drive_id - 1];
 
-        res = vfat_dir_search(&drive->dev->vfat, drive->current_dir_lba, fcb);
-        if (res == -1) {
-                return -1;
+        while (vfat_dir_search(&drive->dev->vfat,
+               drive->current_dir_cluster, fcb) == 0) {
+
         };
+        /*if (res == -1) {
+                return -1;
+        }; */
 
         dire = (vfat_dir_entry_t *)dta;
 
+        ser_printf("*************************\r\n");
         ser_printf("dir lba: %lu, dir_rel: %u, cluster: %u\r\n",
                    fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
+        ser_printf("*************************\r\n");
 
+        fcb->dir_rel = 0;
+        fcb->dir_lba = 0;
+        while (vfat_dir_search(&drive->dev->vfat, 12, fcb) == 0) {
+
+        }
         return 0; 
 }
 
