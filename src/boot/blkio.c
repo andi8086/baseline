@@ -664,6 +664,36 @@ unsigned long int next_cluster(vfs_vfat_t *vfat, unsigned long int cluster)
 }
 
 
+int dir_entry_valid(char __far *e)
+{
+        if (*e != 0 && *e != 0x5e && *e != 0x20 && *e != 0xF6) {
+                return 1;
+        }
+        return 0;
+}
+
+
+int file_compare_wild(char __far *dst, char __far *src)
+{
+        /* compare 8.3 with support for '?' wild card */
+        /*      a ? in src always matches dst */
+        int i; 
+
+        for (i = 0; i < 11; i++) {
+                if (*src != '?') {
+                        if (*src != *dst) {
+                                return *src - *dst;
+                        }
+                } 
+
+                dst++;
+                src++;
+        }
+
+        return 0;
+}
+
+
 int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                     fcb_t __far *fcb)
 {
@@ -704,15 +734,9 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                                 must_read = 0;
                         }
                         dire = (vfat_dir_entry_t __far *)dta + entry % 16;
-
-                        if (dire->name[0] != 0 &&
-                            dire->name[0] != ' ' &&
-                            dire->name[0] != 0x5e &&
-                            dire->name[0] != 0xf6) {
-                        //if (strncmp((char __far *)dire, (char __far *)fcb + 1,
-                        //    11) == 0) {
-                        //        ser_printf("Dir entry found! File starts at "
-                        //                   "cluster %u\r\n", dire->start_cluster);
+                        if (dir_entry_valid((char __far *)dire) &&
+                            !file_compare_wild((char __far *)dire,
+                                (char __far *)fcb + 1)) {
                                 if (entry % 16) {
                                         /* if zero, it is already there */
                                         memcpy(dta, dire, sizeof(vfat_dir_entry_t));
@@ -777,10 +801,11 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                                         }
                                         dire = (vfat_dir_entry_t __far *)dta +
                                                entry % 16;
-                                        if (dire->name[0] != 0 &&
-                                            dire->name[0] != ' ' &&
-                                            dire->name[0] != 0x5e &&
-                                            dire->name[0] != 0xf6) {
+                                        if (dir_entry_valid(
+                                                (char __far *)dire) &&
+                                            !file_compare_wild(
+                                                (char __far *)dire,
+                                                (char __far *)fcb + 1)) {
                                                 fcb->dir_lba = dir_lba +
                                                         rel +
                                                      (entry >> 4);
@@ -837,6 +862,7 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         drive = &drive_table[fcb->drive_id - 1];
 
+
         while (vfat_dir_search(&drive->dev->vfat,
                drive->current_dir_cluster, fcb) == 0) {
                 debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
@@ -873,7 +899,8 @@ void debug_dump_file(void)
         fcb_t __far *x = &fcb;
 
         memset(x, 0, sizeof(fcb_t));
-        strncpy(x->file_name, "TEST    ", 8);
+//        strncpy(x->file_name, "TEST    ", 8);
+        strncpy(x->file_name, "????????", 8);
         strncpy(x->file_ext, "TXT", 3); 
 
         printf("%.8s.%.3s\r\n", x->file_name,
