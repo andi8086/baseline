@@ -154,7 +154,7 @@ int main(void)
 
         printf("Boot drive is %c:\r\n", boot_drive + 'A');
 
-        debug_dump_dir(&drive_table[boot_drive]);
+//        debug_dump_dir(&drive_table[boot_drive]);
         debug_dump_file();
 
 /*

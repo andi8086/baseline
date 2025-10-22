@@ -220,7 +220,7 @@ typedef struct {
 
 
 
-void debug_dump_dir(drive_entry_t *drive);
+void debug_dump_dir(vfat_dir_entry_t __far *e);
 void debug_dump_file(void);
 
 #endif

@@ -469,61 +469,43 @@ void vfat_decode_cdate(vfat_dir_entry_t __far *e, datetime_t *dt)
 }
 
 
-void debug_dump_dir(drive_entry_t *drive)
+void debug_dump_dir_entry(vfat_dir_entry_t __far *dire)
 {
-        blk_drv_t *b;
-        unsigned int entry;
-        vfat_dir_entry_t __far *dire;
         datetime_t cdate;
         char attr_ch;
 
-        b = &drive->dev->drv_gen;
-
-        for (entry = 0; entry < drive->dev->vfat.root_dir_entries; entry++) {
-                if (entry % 16 == 0) {
-                        b->read(b, _SEG_DS(), (uint16_t)sector_buffer,
-                                drive->dev->vfat.root_dir_lba +
-                                entry / 16, 1);
-
-                        dire = (vfat_dir_entry_t __far *)sector_buffer;
-                }
-                if (dire->attrib == FATTR_LFN) {
-                        dire++;
-                        continue;
-                }
-
-                attr_ch = ' ';
-                if (dire->attrib & FATTR_SYSTEM) {
-                        attr_ch = 0xB0;
-                        if (dire->attrib & FATTR_HIDDEN) {
-                                attr_ch = 0xB2;
-                        }       
-                } else
-                if (dire->attrib & FATTR_HIDDEN) {
-                        attr_ch = 0xB1;
-                }
-
-                if (dire->name[0] != 0x20 && dire->name[0] != 0xF6 &&
-                    dire->name[0] != 0 && dire->name[0] != 0xE5) {
-                        vfat_decode_cdate(dire, &cdate);
-
-                        if (dire->attrib & FATTR_DIR) {
-                                printf("%8.8s%c%3.3s    <DIR>   ",
-                                dire->name, attr_ch, dire->ext);
-                        } else {
-                                printf("%8.8s%c%3.3s %10lu ", dire->name,
-                                attr_ch, dire->ext,
-                                *(unsigned long int *)&dire->file_size_lo);
-                        }
-
-                        printf(" %4u-%2u-%2u %02u:%02u:%02u ",
-                               cdate.year, cdate.mon, cdate.day,
-                               cdate.hour, cdate.min, cdate.sec);
-                        
-                        printf(" [%u]\r\n", dire->start_cluster);
-                }
+/*        if (dire->attrib == FATTR_LFN) {
                 dire++;
+                continue;
         }
+*/
+        attr_ch = ' ';
+        if (dire->attrib & FATTR_SYSTEM) {
+                attr_ch = 0xB0;
+                if (dire->attrib & FATTR_HIDDEN) {
+                        attr_ch = 0xB2;
+                }       
+        } else
+        if (dire->attrib & FATTR_HIDDEN) {
+                attr_ch = 0xB1;
+        }
+
+        vfat_decode_cdate(dire, &cdate);
+
+        if (dire->attrib & FATTR_DIR) {
+                printf("%8.8s%c%3.3s    <DIR>   ",
+                dire->name, attr_ch, dire->ext);
+        } else {
+                printf("%8.8s%c%3.3s %10lu ", dire->name,
+                attr_ch, dire->ext,
+                *(unsigned long int *)&dire->file_size_lo);
+        }
+
+        printf(" %4u-%2u-%2u %02u:%02u:%02u ",
+               cdate.year, cdate.mon, cdate.day,
+               cdate.hour, cdate.min, cdate.sec);
+        
+        printf(" [%u]\r\n", dire->start_cluster);
 }
 
 
@@ -731,9 +713,6 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                         //    11) == 0) {
                         //        ser_printf("Dir entry found! File starts at "
                         //                   "cluster %u\r\n", dire->start_cluster);
-                                printf("%.11s\r\n", (char __far *)dire);
-                                /* create a file open entry and return
-                                   a handle */
                                 if (entry % 16) {
                                         /* if zero, it is already there */
                                         memcpy(dta, dire, sizeof(vfat_dir_entry_t));
@@ -802,8 +781,6 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                                             dire->name[0] != ' ' &&
                                             dire->name[0] != 0x5e &&
                                             dire->name[0] != 0xf6) {
-                                                printf("%.11s\r\n",
-                                                        (char __far *)dire);
                                                 fcb->dir_lba = dir_lba +
                                                         rel +
                                                      (entry >> 4);
@@ -862,7 +839,7 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         while (vfat_dir_search(&drive->dev->vfat,
                drive->current_dir_cluster, fcb) == 0) {
-
+                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
         };
         /*if (res == -1) {
                 return -1;
@@ -878,7 +855,7 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
         fcb->dir_rel = 0;
         fcb->dir_lba = 0;
         while (vfat_dir_search(&drive->dev->vfat, 12, fcb) == 0) {
-
+                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
         }
         return 0; 
 }
