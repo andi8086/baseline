@@ -60,6 +60,7 @@ boot360k: boot360k.bin bload.sys
 	mcopy -i f360k.bin bload.sys ::/
 	mattrib -i f360k.bin +s +h bload.sys
 	mmd -i f360k.bin test
+	mmd -i f360k.bin foo.bar
 	mcopy -i f360k.bin bload.c ::/
 	mcopy -i f360k.bin blkio.c ::/
 	mcopy -i f360k.bin test.txt ::/

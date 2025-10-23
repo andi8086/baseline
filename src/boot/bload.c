@@ -287,23 +287,80 @@ void fcb_set_filename(fcb_t __far *fcb, char __far *name)
 void command_cd(char __far *param)
 {
         extern uint8_t current_drive;
+        extern uint8_t __far *dta;
+        drive_entry_t *drive;
         fcb_t fcb;
+        vfat_dir_entry_t __far *e;
+        char __far *d, __far *s;
+        int count;
+        
+        drive = &drive_table[current_drive - 1];
 
         if (!param) {
                 printf("\r\n%c:%s\r\n",
                        'A' + current_drive - 1,
-                       _MK_FP(_SEG_DS(),
-                             drive_table[current_drive - 1].current_dir));
+                       _MK_FP(_SEG_DS(), drive->current_dir));
+                return;
+        }
+
+        if (strlen(param) == 1 && *param == '\\') {
+                drive->current_dir[1] = 0;
+                drive->current_dir_cluster = 0;
                 return;
         }
 
         memset(&fcb, 0, sizeof(fcb_t));
         /* to upper case */
         to_upper(param);
-        printf("to_upper: %s\r\n", param);
-
         fcb_set_filename(&fcb, param);
-        printf("%s\r\n", (char __far *)fcb.file_name); 
+        fcb.drive_id = current_drive;
+        
+        /* search the entered name */
+        if (vfat_dir_search(&drive->dev->vfat,
+            drive->current_dir_cluster, &fcb) != 0) {
+                goto dir_not_found;
+        }
+
+        e = (vfat_dir_entry_t __far *)dta; 
+              
+        if (e->attrib & FATTR_DIR) {
+                drive->current_dir_cluster = e->start_cluster;
+                /* append name of directory onto current path */
+                d = drive->current_dir;
+                s = e->name;
+                while (*(++d));
+
+                if (strncmp(s, "..", 2) == 0) {
+                        goto remove_one_level;
+                }
+                if (strncmp(s, ".", 1) == 0) {
+                        goto keep_dir;
+                }
+
+                for (count = 0; *s != ' ' && count < 8; count++) {
+                        *(d++) = *(s++);
+                } 
+                s = ((vfat_dir_entry_t __far *)dta)->ext;
+                if (*s != ' ') {
+                        *(d++) = '.';
+                        count = 0;
+                        for (count = 0; *s != ' ' && count < 3; count++) {
+                                *(d++) = *(s++);
+                        }
+                }
+                *(d++) = '\\';
+                *d = 0;
+                return;
+remove_one_level:
+                d--;
+                while (*(--d) != '\\');
+                *(++d) = 0;
+keep_dir:
+                return;
+        }
+
+dir_not_found:
+        printf("Dir not found\r\n"); 
 }
 
 
