@@ -76,6 +76,17 @@ void buffered_input(char __far *buffer)
                         *dst = 0;
                         return;
                 }
+                if (*dst == 8) {
+                        if (dst > buffer) {
+                                putc(0x8);
+                                putc(0x20);
+                                putc(0x8);
+                                *dst = 0;
+                                dst--;
+                        } 
+                        *dst = 0;
+                        continue;
+                }
                 putc(*dst);
                 dst++;
         }
