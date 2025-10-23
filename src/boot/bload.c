@@ -31,7 +31,7 @@ void _cstart(void)
         main();
 }
 
-
+extern uint8_t current_drive;
 void command_dir(char __far *param);
 void command_cd(char __far *param);
 void command_cls(void);
@@ -165,21 +165,32 @@ int main(void)
         
         while (1) {
                 char __far *s;
+                char __far *dir = drive_table[current_drive - 1].current_dir;
+                int cmd_len;
 
-                printf("\r\n%c>", boot_drive + 'A');
+                if (strlen(dir) > 1) {
+                        dir++;
+                }
+
+                printf("\r\n%c:\\%.*s>", boot_drive + 'A',
+                        strlen(dir)-1, dir);
                 buffered_input(input_buffer);
 
                 s = strtok(input_buffer, " ");
+                if (!s) {
+                        continue;
+                }
+                cmd_len = strlen(s);
 
-                if (strlen(s) == 3 && strncmp(s, "dir", 3) == 0) {
+                if (cmd_len == 3 && strncmp(s, "dir", 3) == 0) {
                         s = strtok(NULL, " ");
                         command_dir(s);                      
                 } else
-                if (strlen(s) == 2 && strncmp(s, "cd", 2) == 0) {
+                if (cmd_len == 2 && strncmp(s, "cd", 2) == 0) {
                         s = strtok(NULL, " ");
                         command_cd(s);
                 } else
-                if (strlen(s) == 3 && strncmp(s, "cls", 3) == 0) {
+                if (cmd_len == 3 && strncmp(s, "cls", 3) == 0) {
                         command_cls();
                 }
         } 
@@ -313,7 +324,6 @@ void fcb_set_filename(fcb_t __far *fcb, char __far *name)
 
 void command_cd(char __far *param)
 {
-        extern uint8_t current_drive;
         extern uint8_t __far *dta;
         drive_entry_t *drive;
         fcb_t fcb;
@@ -397,7 +407,6 @@ void command_dir(char __far *param)
  
         drive_entry_t *drive;
         unsigned long bytes_used = 0;
-        extern uint8_t current_drive;
         extern uint8_t __far *dta;
         vfat_dir_entry_t __far *e;
         uint16_t count = 0;
