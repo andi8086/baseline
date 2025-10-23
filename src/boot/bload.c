@@ -33,7 +33,7 @@ void _cstart(void)
 
 
 void command_dir(char __far *param);
-
+void command_cd(char __far *param);
 
 const char *hello_msg = "\r\nBaseline, v0.1\r\n"
                         "(C)2025 by Andreas J. Reichel\r\n";
@@ -171,11 +171,12 @@ int main(void)
                 s = strtok(input_buffer, " ");
 
                 if (strlen(s) == 3 && strncmp(s, "dir", 3) == 0) {
-                        if (s = strtok(NULL, " ")) {
-                                printf("param: %s\r\n", s);
-                        } else {
-                                command_dir(NULL);
-                        }
+                        s = strtok(NULL, " ");
+                        command_dir(s);                      
+                } else
+                if (strlen(s) == 2 && strncmp(s, "cd", 2) == 0) {
+                        s = strtok(NULL, " ");
+                        command_cd(s);
                 }
         } 
 
@@ -210,29 +211,137 @@ kernel_halt:
 }
 
 
+void to_upper(char __far *str)
+{
+        while (*str) {
+                if (*str <= 'z' && *str >= 'a') {
+                        *str -= 'a' - 'A';
+                } 
+                str++;
+        }
+}
+
+
+void fcb_set_filename(fcb_t __far *fcb, char __far *name)
+{
+        int count = 0;
+        char __far *dst = (char __far *)fcb->file_name;
+
+        if (strlen(name) == 1 && *name == '.') {
+                strncpy(fcb->file_name, ".          ", 11);
+                return;
+        } else
+        if (strlen(name) == 2 && name[0] == '.' && name[1] == '.') {
+                strncpy(fcb->file_name, "..         ", 11);
+                return;
+        }
+
+        while (count < 8 && *name) {
+                if (*name == '.') {
+                        break;
+                }
+                if (*name == '*') {
+                        while (count < 8) {
+                                *(dst++) = '?';
+                                count++; 
+                        }
+                        name++;
+                        break;
+                }
+                *(dst++) = *name; 
+                count++;
+                name++;
+        }
+        if (*name && count == 8 && *name != '.') {
+                while (*name && *name != '.') {
+                        name++;
+                }
+        }
+        if (*name == '.') {
+                name++;
+        }
+        for (; count < 8; count++) {
+                *(dst++) = ' ';
+        }
+        count = 0;
+        while (count < 3 && *name) {
+                if (*name == '*') {
+                        while (count < 3) {
+                                *(dst++) = '?';
+                                count++;
+                        }
+                        break;
+                }
+                *(dst++) = *name;
+                count++;
+                name++;
+        }
+
+        for (; count < 3; count++) {
+                *(dst++) = ' ';
+        }
+
+}
+
+
+void command_cd(char __far *param)
+{
+        extern uint8_t current_drive;
+        fcb_t fcb;
+
+        if (!param) {
+                printf("\r\n%c:%s\r\n",
+                       'A' + current_drive - 1,
+                       _MK_FP(_SEG_DS(),
+                             drive_table[current_drive - 1].current_dir));
+                return;
+        }
+
+        memset(&fcb, 0, sizeof(fcb_t));
+        /* to upper case */
+        to_upper(param);
+        printf("to_upper: %s\r\n", param);
+
+        fcb_set_filename(&fcb, param);
+        printf("%s\r\n", (char __far *)fcb.file_name); 
+}
+
+
 void command_dir(char __far *param)
 {
         fcb_t fcb;
  
         drive_entry_t *drive;
+        unsigned long bytes_used = 0;
         extern uint8_t current_drive;
         extern uint8_t __far *dta;
+        vfat_dir_entry_t __far *e;
+        uint16_t count = 0;
 
         memset(&fcb, 0, sizeof(fcb_t));
 
         fcb.drive_id = current_drive;
         drive = &drive_table[fcb.drive_id - 1];
-        
-        strncpy(fcb.file_name, "????????", 8);
-        strncpy(fcb.file_ext, "???", 3); 
 
+
+        if (param) {
+                to_upper(param);
+                fcb_set_filename(&fcb, param);
+        } else {
+                strncpy(fcb.file_name, "????????", 8);
+                strncpy(fcb.file_ext, "???", 3); 
+        }
         printf("\r\n");
         printf("\r\n");
         while (vfat_dir_search(&drive->dev->vfat,
                 drive->current_dir_cluster, &fcb) == 0) {
-                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
+                e = (vfat_dir_entry_t __far *)dta;
+                bytes_used += *(unsigned long int *)&e->file_size_lo;
+                debug_dump_dir_entry(e);
+                count++;
         }
         printf("\r\n");
-        printf("       %lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
+        printf("%10u Files %13lu Bytes\r\n", count, bytes_used);
+        printf("%30lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
 
 }
