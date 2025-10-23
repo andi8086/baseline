@@ -34,6 +34,7 @@ void _cstart(void)
 
 void command_dir(char __far *param);
 void command_cd(char __far *param);
+void command_cls(void);
 
 const char *hello_msg = "\r\nBaseline, v0.1\r\n"
                         "(C)2025 by Andreas J. Reichel\r\n";
@@ -177,6 +178,9 @@ int main(void)
                 if (strlen(s) == 2 && strncmp(s, "cd", 2) == 0) {
                         s = strtok(NULL, " ");
                         command_cd(s);
+                } else
+                if (strlen(s) == 3 && strncmp(s, "cls", 3) == 0) {
+                        command_cls();
                 }
         } 
 
@@ -208,6 +212,29 @@ kernel_halt:
         goto kernel_halt;
 
         return 0;
+}
+
+
+void command_cls(void)
+{
+        __asm {
+                "push bx"
+                "push dx"
+                "mov ah, 6"
+                "mov al, 0"
+                "mov bh, 7"
+                "mov ch, 0"
+                "mov cl, 0"
+                "mov dh, 49"
+                "mov dl, 79"
+                "int 10h"
+                "mov ah, 2"
+                "mov bh, 0"
+                "mov dx, 0"
+                "int 10h"
+                "pop dx"
+                "pop bx"
+        }
 }
 
 
