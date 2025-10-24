@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 
+int getc(void);
 void puts(char near *s);
 void putc(char c);
 void printf(char __far *fmt, ...);

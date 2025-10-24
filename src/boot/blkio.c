@@ -83,8 +83,10 @@ blk_buffer_t *blk_buffer_get(void)
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].drive == -1) {
                         blk_buffer[i].acc++;
+#ifdef BLKIO_DEBUG
                         ser_printf("Unused cache entry found (#%u)\r\n",
                                i);
+#endif
                         return &blk_buffer[i];
                 }
         }
@@ -94,8 +96,10 @@ blk_buffer_t *blk_buffer_get(void)
                 if (blk_buffer[i].dirty == 0) {
                         bzero(&blk_buffer[i], sizeof(blk_buffer_t));
                         blk_buffer[i].drive = -1;
+#ifdef BLKIO_DEBUG
                         ser_printf("Reusing non-dirty cache (#%u)\r\n",
                                i);
+#endif
                         return &blk_buffer[i];
                 }
         }
@@ -112,9 +116,9 @@ blk_buffer_t *blk_buffer_get(void)
                         acc0_idx = i;
                 } 
         }
-
+#ifdef BLKIO_DEBUG
         ser_printf("Dropping oldest cache #%u\r\n", acc0_idx);
-
+#endif
         /* subtract acc1 from all acc fields */
         for (i = 0; i < BLK_BUFFERS; i++) {
                 blk_buffer[i].acc -= acc1;
@@ -122,7 +126,9 @@ blk_buffer_t *blk_buffer_get(void)
 
         /* flush buffer acc0_idx if dirty */
         if (blk_buffer[acc0_idx].dirty) {
+#ifdef BLKIO_DEBUG
                 ser_printf("Flusing oldest cache #%u\r\n", acc0_idx);
+#endif
                 drv = blk_buffer[acc0_idx].drv;
                 drv->write(drv, _FP_SEG(&blk_buffer[acc0_idx].buffer),
                            _FP_OFF(&blk_buffer[acc0_idx].buffer),
@@ -143,9 +149,11 @@ blk_buffer_t *blk_buffer_search(int drive, unsigned long lba)
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].drive == drive &&
                     blk_buffer[i].lba == lba) {
+#ifdef BLKIO_DEBUG
                         ser_printf("sector is in cache #%u ", i);
                         ser_printf("(drive = %u, lba = %lu)\r\n",
                                     drive, lba);
+#endif
                         return &blk_buffer[i];
                 }
         }
@@ -326,10 +334,10 @@ int blkdrv_int13_read(struct blk_drv *b, uint16_t seg_buffer,
         }
 
         lba_to_chs(drv, addr, &cyl, &head, &sec);
-
+#ifdef BLKIO_DEBUG
         ser_printf("blkdrv_int13_read: LBA address %lu is C/H/S %u/%u/%u\r\n",
                    addr, cyl, head, sec);
-
+#endif
         if (DEBUG) {
                 printf("cyl = %u, head = %u, sec = %u\r\n",
                        cyl, head, sec);
@@ -676,9 +684,9 @@ unsigned long vfat_free_space(vfs_vfat_t *vfat)
         max_cluster -= vfat->data_start;
         max_cluster /= vfat->cluster_size;
         max_cluster++;
-
+#ifdef BLKIO_DEBUG
         ser_printf("Max cluster is %u\r\n", max_cluster);
-
+#endif
         for (c = 2; c <= max_cluster; c++) {
 
                 unsigned int fat_offset = c + (c >> 1);
@@ -701,9 +709,9 @@ unsigned long vfat_free_space(vfs_vfat_t *vfat)
                         space += 1;                        
                 }
         }
-
+#ifdef BLKIO_DEBUG
         ser_printf("%u clusters free\r\n", space);
-
+#endif
         for (c = 0; c < vfat->cluster_size; c++) {
                 tmp += space;
         }
@@ -836,9 +844,9 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                 /* we must iterate the directory like a file with FAT chain */
                 do {
                         dir_lba = cluster_to_lba(vfat, dir_cluster);
-
+#ifdef BLKIO_DEBUG
                         ser_printf("dir: lba is %lu\r\n", dir_lba + rel);
-
+#endif
                         for (; rel < vfat->cluster_size; rel++) {
                                 for (; entry < 16; entry++) {
                                         if ((entry & 15) == 0 || must_read) {
@@ -923,12 +931,12 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
         }; */
 
         dire = (vfat_dir_entry_t *)dta;
-
+#ifdef BLKIO_DEBUG
         ser_printf("*************************\r\n");
         ser_printf("dir lba: %lu, dir_rel: %u, cluster: %u\r\n",
                    fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
         ser_printf("*************************\r\n");
-
+#endif
         fcb->dir_rel = 0;
         fcb->dir_lba = 0;
         while (vfat_dir_search(&drive->dev->vfat, 12, fcb) == 0) {

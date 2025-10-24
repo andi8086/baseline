@@ -12,16 +12,39 @@ chardev_t bios_term;
 console_t defconsole;
 
 
-static char bios_keyb_get(void *ctx)
+void outb(uint16_t port, uint8_t val)
 {
-        char ich;
+        _asm {
+                "mov dx, port"
+                "mov al, val"
+                "out dx, al"
+        }
+}
+
+
+uint8_t inb(uint16_t port)
+{
+        uint8_t pval;
+
+        _asm {
+                "mov dx, port"
+                "in al, dx"
+                "mov pval, al"
+        }
+        return pval;
+}
+
+
+static int bios_keyb_get(void *ctx)
+{
+        int ich;
 
         (void)ctx;
 
         _asm {
                 "xor ax, ax"
                 "int 16h"
-                "mov ich, al"
+                "mov ich, ax"
         }
 
         return ich;
@@ -36,7 +59,7 @@ static int bios_keyb_put(void *ctx, char c)
 }
 
 
-static char vt_get(void *ctx)
+static int vt_get(void *ctx)
 {
         uint16_t k = 0;
 

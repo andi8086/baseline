@@ -552,7 +552,6 @@ void command_dir(char __far *param)
                 debug_dump_dir_entry(e);
                 count++;
         }
-        printf("\r\n");
         printf("%10u Files %13lu Bytes\r\n", count, bytes_used);
         printf("%30lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
 

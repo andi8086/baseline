@@ -7,7 +7,7 @@
 #pragma pack(push, 1)
 typedef struct {
         int (*put)(void *ctx, char c);
-        char (*get)(void *ctx);
+        int (*get)(void *ctx);
         void *ctx;
 } chardev_t;
 
