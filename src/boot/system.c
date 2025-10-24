@@ -23,7 +23,7 @@ void sys_get_equipment(equipment_t **e)
         equipment.num_com_ports = ew->num_com_ports;
         equipment.num_lpt_ports = ew->num_lpt_ports;
 
-        equipment.num_floppies = ew->floppy_drives;
+        equipment.num_floppies = ew->floppy_drives + 1;
 
 //      This won't work on a system older then 286/AT
 //

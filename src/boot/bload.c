@@ -32,6 +32,7 @@ void _cstart(void)
 }
 
 extern uint8_t current_drive;
+void to_upper(char __far *str);
 void command_dir(char __far *param);
 void command_cd(char __far *param);
 void command_cls(void);
@@ -112,6 +113,7 @@ int main(void)
                            drive itself */
                         vbr = blkio_read_vbr(bdev, 0);
                         if (!vbr) {
+                                printf("Could not read VBR\n");
                                 /* could not read VBR */
                                 continue;
                         }
@@ -152,7 +154,8 @@ int main(void)
                         strncpy(drive_table[max_drive].current_dir,
                                 "\\", 2);
                         drive_table[max_drive].current_dir_cluster = 0;
-
+                        drive_table[max_drive].drive_letter = drv_letter;
+                        drv_letter++;
                         max_drive++;
                 } else {
 
@@ -164,34 +167,49 @@ int main(void)
 //        debug_dump_file();
         
         while (1) {
+                drive_entry_t *drive = &drive_table[current_drive - 1];
                 char __far *s;
-                char __far *dir = drive_table[current_drive - 1].current_dir;
+                char __far *dir = drive->current_dir;
                 int cmd_len;
 
                 if (strlen(dir) > 1) {
                         dir++;
                 }
 
-                printf("\r\n%c:\\%.*s>", boot_drive + 'A',
+                printf("\r\n%c:\\%.*s>", drive->drive_letter,
                         strlen(dir)-1, dir);
-                buffered_input(input_buffer);
 
+                buffered_input(input_buffer);
+                to_upper(input_buffer);
                 s = strtok(input_buffer, " ");
                 if (!s) {
                         continue;
                 }
                 cmd_len = strlen(s);
 
-                if (cmd_len == 3 && strncmp(s, "dir", 3) == 0) {
+                if (cmd_len == 3 && strncmp(s, "DIR", 3) == 0) {
                         s = strtok(NULL, " ");
                         command_dir(s);                      
                 } else
-                if (cmd_len == 2 && strncmp(s, "cd", 2) == 0) {
+                if (cmd_len == 2 && strncmp(s, "CD", 2) == 0) {
                         s = strtok(NULL, " ");
                         command_cd(s);
                 } else
-                if (cmd_len == 3 && strncmp(s, "cls", 3) == 0) {
+                if (cmd_len == 3 && strncmp(s, "CLS", 3) == 0) {
                         command_cls();
+                } else
+                if (cmd_len == 2 && s[1] == ':' &&
+                    (s[0] >= 'A' && s[0] <= 'Z')) {
+
+                        int lw = 0;
+                        for (lw = 0; lw < max_drive; lw++) {
+                                if (drive_table[lw].drive_letter == s[0]) {
+                                        current_drive = lw + 1;
+                                        printf("Drive changed\r\n");
+                                        break;
+                                }
+                        }
+
                 } else {
                         printf("\r\n?");
                 }
