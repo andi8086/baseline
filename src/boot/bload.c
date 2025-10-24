@@ -192,6 +192,8 @@ int main(void)
                 } else
                 if (cmd_len == 3 && strncmp(s, "cls", 3) == 0) {
                         command_cls();
+                } else {
+                        printf("\r\n?");
                 }
         } 
 
@@ -322,6 +324,155 @@ void fcb_set_filename(fcb_t __far *fcb, char __far *name)
 }
 
 
+#define SCANPATH_DIR  1
+#define SCANPATH_FILE 2
+
+/* Cluster 1 never used, this is an error */
+#define SCANPATH_ERR 1
+
+#undef SCANPATH_DEBUG
+
+unsigned long scan_path(char __far *path, int flags, char __far *path_buffer)
+{
+        extern uint8_t __far *dta;
+        drive_entry_t __far *drive;
+        fcb_t fcb;
+        vfat_dir_entry_t __far *e;
+        char __far *d, __far *s, __far *p, __far *p_old;
+        int count, scan_absolute;
+        unsigned long old_dir_cluster;
+        int len;
+        unsigned long res;
+        char __far *pdst = path_buffer;
+
+        /* TODO: implement drive letter support */
+        drive = &drive_table[current_drive - 1];
+        e = (vfat_dir_entry_t __far *)dta; 
+              
+        /* check if first char is a backslash */
+        if (*path == '\\') {
+                scan_absolute = 1;
+                while (*path == '\\') path++;
+                /* strangely specified root directory */
+                if (!*path) {
+                        if (pdst) {
+                                *(pdst++) = '\\';
+                                *pdst = 0;
+                        }
+                        /* FIXME: this will not always be zero! */
+                        return 0;
+                }
+        } else {
+                scan_absolute = 0;
+        }
+
+#ifdef SCANPATH_DEBUG
+        /*************** DEBUG ****************/
+        printf("\r\nScan absolute: %d\r\n", scan_absolute);
+        printf("Input path: %s\r\n", path);
+        printf("Current dir: %s\r\n", drive->current_dir);
+        /*************** DEBUG ****************/
+#endif
+
+        old_dir_cluster = drive->current_dir_cluster; 
+
+        if (scan_absolute) {
+                /* start scanning from root directory */
+                drive->current_dir_cluster =
+                        drive->dev->vfat.root_dir_cluster;
+                if (path_buffer) {
+                        str_append(pdst++, "\\");
+                }
+        } else {
+                if (path_buffer) {
+                        len = strlen(drive->current_dir);
+                        strncpy(pdst, drive->current_dir, len);
+                        pdst += len;
+                        if (*(pdst - 1) != '\\') {
+                                *(pdst++) = '\\';
+                        }
+                        *pdst = 0; // temporary
+                }
+        }
+
+#ifdef SCANPATH_DEBUG
+        /**************** DEBUG *****************/
+        if (path_buffer) {
+                printf("\r\nStart-Buffer: %s\r\n", path_buffer);
+        }
+        /**************** DEBUG *****************/
+#endif
+
+        p = strtok(path, "\\");
+
+        while (p) {
+                memset(&fcb, 0, sizeof(fcb_t));
+                fcb.drive_id = current_drive;
+                /* set up file name in FCB */
+                to_upper(p);
+                fcb_set_filename(&fcb, p);
+                
+                /* search the entered name */
+                if (vfat_dir_search(&drive->dev->vfat,
+                    drive->current_dir_cluster, &fcb) != 0) {
+                        goto file_not_found;
+                }
+
+                p_old = p;
+                p = strtok(NULL, "\\");
+
+                if (flags & SCANPATH_DIR) {
+                        /* check last level according to flags */
+                        if (!(e->attrib & FATTR_DIR)) {
+                                goto invalid_path;
+                        }
+                }
+
+                drive->current_dir_cluster =
+                        (unsigned long)e->start_cluster_hi * 65536 +
+                        e->start_cluster;
+
+                if (pdst) {
+                        if (strncmp(p_old, "..", 2) == 0) {
+                                pdst--;
+                                while (*(pdst-1) != '\\') {
+                                        pdst--;
+                                        *pdst = 0;
+                                }
+                                continue;
+                        }
+                        if (strncmp(p_old, ".", 1) == 0) {
+                                continue;
+                        }
+                        len = strlen(p_old);
+                        strncpy(pdst, p_old, len);
+                        pdst += len;
+                        *(pdst++) = '\\';
+                }
+        } 
+
+        if (pdst) {
+                *pdst = 0;
+        }
+
+        res = (unsigned long)e->start_cluster_hi * 65536 + e->start_cluster;
+#ifdef SCANPATH_DEBUG
+        printf("path scan compete\r\n");
+        printf("cluster is %lu\r\n", res);
+#endif
+        return res;
+file_not_found:
+invalid_path:
+#ifdef SCANPATH_DEBUG
+        printf("invalid path\r\n");
+#endif
+        /* restore old directory */
+        drive->current_dir_cluster = old_dir_cluster;
+        /* return invalid cluster */
+        return SCANPATH_ERR;
+}
+
+
 void command_cd(char __far *param)
 {
         extern uint8_t __far *dta;
@@ -330,7 +481,11 @@ void command_cd(char __far *param)
         vfat_dir_entry_t __far *e;
         char __far *d, __far *s;
         int count;
-        
+        char path_buffer[MAX_PATH]; 
+        unsigned long res;
+
+        printf("\r\n");
+ 
         drive = &drive_table[current_drive - 1];
 
         if (!param) {
@@ -341,63 +496,27 @@ void command_cd(char __far *param)
         }
 
         if (strlen(param) == 1 && *param == '\\') {
+                drive->current_dir[0] = '\\';
                 drive->current_dir[1] = 0;
                 drive->current_dir_cluster = 0;
                 return;
         }
 
-        memset(&fcb, 0, sizeof(fcb_t));
-        /* to upper case */
-        to_upper(param);
-        fcb_set_filename(&fcb, param);
-        fcb.drive_id = current_drive;
-        
-        /* search the entered name */
-        if (vfat_dir_search(&drive->dev->vfat,
-            drive->current_dir_cluster, &fcb) != 0) {
-                goto dir_not_found;
+        /* directory specified, scan for it */
+        path_buffer[0] = 0;
+        res = scan_path(param, SCANPATH_DIR, path_buffer);
+
+        if (res != 1) {
+                memcpy(drive->current_dir,
+                       _MK_FP(_SEG_DS(), path_buffer),
+                       strlen(_MK_FP(_SEG_DS(), path_buffer)) + 1);
+#ifdef PATHSCAN_DEBUG
+                printf("\r\nReturned: %s\r\n", _MK_FP(_SEG_DS(), path_buffer));
+#endif
+                drive->current_dir_cluster = res;
+        } else {
+                printf("Not found\r\n");
         }
-
-        e = (vfat_dir_entry_t __far *)dta; 
-              
-        if (e->attrib & FATTR_DIR) {
-                drive->current_dir_cluster = e->start_cluster;
-                /* append name of directory onto current path */
-                d = drive->current_dir;
-                s = e->name;
-                while (*(++d));
-
-                if (strncmp(s, "..", 2) == 0) {
-                        goto remove_one_level;
-                }
-                if (strncmp(s, ".", 1) == 0) {
-                        goto keep_dir;
-                }
-
-                for (count = 0; *s != ' ' && count < 8; count++) {
-                        *(d++) = *(s++);
-                } 
-                s = ((vfat_dir_entry_t __far *)dta)->ext;
-                if (*s != ' ') {
-                        *(d++) = '.';
-                        count = 0;
-                        for (count = 0; *s != ' ' && count < 3; count++) {
-                                *(d++) = *(s++);
-                        }
-                }
-                *(d++) = '\\';
-                *d = 0;
-                return;
-remove_one_level:
-                d--;
-                while (*(--d) != '\\');
-                *(++d) = 0;
-keep_dir:
-                return;
-        }
-
-dir_not_found:
-        printf("Dir not found\r\n"); 
 }
 
 

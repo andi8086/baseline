@@ -36,7 +36,8 @@ void memset(void far *dst, uint8_t val, uint16_t count);
 int strncmp(char __far *dst, char __far *src, uint16_t count);
 void memcpy(void __far *dst, void __far *src, uint16_t count);
 int strlen(char __far *str);
-char __far *strtok(char __far *str, char *sep);
-
+char __far *strtok(char __far *str, char __far *sep);
+void str_append(char __far *str, char __far *what);
+void str_rm_until(char __far *str, char what);
 
 #endif
