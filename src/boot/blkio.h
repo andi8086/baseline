@@ -188,7 +188,6 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs);
 
 void blkio_set_max(uint8_t maxdev);
 
-
 typedef struct {
         char drive_letter;
         blk_dev_t *dev;
@@ -197,9 +196,12 @@ typedef struct {
 } drive_entry_t;
 
 
+int blkio_change_drive(drive_entry_t *drive);
+
 extern uint8_t max_drive;
 extern drive_entry_t drive_table[MAX_DRIVES];
 
+int vfat_init_from_vbr(vfs_vfat_t *vfat, char *vbr);
 
 typedef struct {
         vfat_dir_entry_t dire;

@@ -267,7 +267,6 @@ int blkdrv_int13_init(struct blk_drv *b, void *p, equipment_t *e)
 
                         return 1;
                 }
-                printf("After int13, 08\r\n");
                 bd->hmax = rout._dx >> 8;
                 bd->cmax = ((rout._cx >> 5) & 3) * 256 +
                                 (rout._cx >> 8);
@@ -460,6 +459,50 @@ void *blkio_read_vbr(blk_dev_t *bdev, unsigned long addr)
            cases, how can we detect that? */
 
         return sector_buffer;
+}
+
+
+int vfat_init_from_vbr(vfs_vfat_t *vfat, char *vbr)
+{
+        bpb_dos200_t *bpb;
+
+        bpb = (bpb_dos200_t *)(vbr + BPB_START_OFFSET);
+
+        vfat->fat_start = bpb->reserved_sectors;
+        vfat->cluster_size = bpb->sectors_per_cluster;
+        vfat->fat_sectors = bpb->sectors_per_fat;
+        vfat->num_fats = bpb->num_fats;
+
+        vfat->root_dir_cluster = 0;
+        vfat->root_dir_lba =
+                vfat->fat_start +
+                vfat->fat_sectors * vfat->num_fats;
+
+        vfat->root_dir_entries = bpb->root_dir_entries;
+
+
+        /* round up! */
+        vfat->data_start = vfat->root_dir_lba +
+                (bpb->root_dir_entries + 15) / 16;
+
+        return 0;
+}
+
+
+int blkio_change_drive(drive_entry_t *drive)
+{
+        char *vbr;
+        blk_dev_t *bdev;
+
+        bdev = drive->dev;
+        vbr = blkio_read_vbr(bdev, 0);
+        if (!vbr) {
+                return -1;
+        }
+
+        (void)vfat_init_from_vbr(&bdev->vfat, vbr);
+
+        return 0;
 }
 
 

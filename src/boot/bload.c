@@ -127,30 +127,12 @@ int main(void)
 
                         bdev->fs_type = FS_TYPE_FAT12;
                         bdev->vfat.fat_bits = 12;
+                        bdev->vfat.drv = &bdev->drv_gen;
 
-                        bpb = (bpb_dos200_t *)(vbr + BPB_START_OFFSET);
-
-                        bdev->vfat.fat_start = bpb->reserved_sectors;
-                        bdev->vfat.cluster_size = bpb->sectors_per_cluster;
-                        bdev->vfat.fat_sectors = bpb->sectors_per_fat;
-                        bdev->vfat.num_fats = bpb->num_fats;
-
-                        bdev->vfat.root_dir_cluster = 0;
-                        bdev->vfat.root_dir_lba =
-                                bdev->vfat.fat_start +
-                                bdev->vfat.fat_sectors * bdev->vfat.num_fats;
-
-                        bdev->vfat.root_dir_entries = bpb->root_dir_entries;
+                        vfat_init_from_vbr(&bdev->vfat, vbr);
 
                         drive_table[max_drive].dev = bdev;
                         drive_table[max_drive].drive_letter = drv_letter;
-
-                        /* round up! */
-                        bdev->vfat.data_start = bdev->vfat.root_dir_lba +
-                                (bpb->root_dir_entries + 15) / 16;
-
-                        bdev->vfat.drv = &bdev->drv_gen;
-
                         strncpy(drive_table[max_drive].current_dir,
                                 "\\", 2);
                         drive_table[max_drive].current_dir_cluster = 0;
@@ -204,9 +186,14 @@ int main(void)
                         int lw = 0;
                         for (lw = 0; lw < max_drive; lw++) {
                                 if (drive_table[lw].drive_letter == s[0]) {
-                                        current_drive = lw + 1;
-                                        printf("Drive changed\r\n");
-                                        break;
+                                        if (blkio_change_drive(
+                                                &drive_table[lw]) == 0) {
+                                                current_drive = lw + 1;
+                                                break;
+                                        } else {
+                                                printf("Drive not ready\r\n");
+                                                break;
+                                        }
                                 }
                         }
 
