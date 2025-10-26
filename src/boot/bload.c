@@ -113,9 +113,9 @@ int main(void)
                            drive itself */
                         vbr = blkio_read_vbr(bdev, 0);
                         if (!vbr) {
-                                printf("Could not read VBR\n");
                                 /* could not read VBR */
-                                continue;
+                                /* but we continue anyway to have
+                                   this drive letter registered */
                         }
                         /* we assume FAT12 (supported for 4 FDDs) */
                         if (!(bdev->drv_int13.drive_number == 0 ||
@@ -191,7 +191,7 @@ int main(void)
                                                 current_drive = lw + 1;
                                                 break;
                                         } else {
-                                                printf("Drive not ready\r\n");
+                                                printf("\r\nDrive not ready\r\n");
                                                 break;
                                         }
                                 }

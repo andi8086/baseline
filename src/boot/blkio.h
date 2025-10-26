@@ -149,10 +149,13 @@ typedef struct blk_dev {
         };
 } blk_dev_t;
 
+#define BUFFER_DIRTY 1
+#define BUFFER_INVAL 2
+
 typedef struct {
         int drive;
         unsigned long lba;
-        int dirty; 
+        int flags; 
         unsigned long acc;
         blk_drv_t *drv;
         uint8_t buffer[512];

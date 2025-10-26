@@ -93,7 +93,7 @@ blk_buffer_t *blk_buffer_get(void)
 
         /* look for non-dirty buffer */
         for (i = 0; i < BLK_BUFFERS; i++) {
-                if (blk_buffer[i].dirty == 0) {
+                if (!(blk_buffer[i].flags & BUFFER_DIRTY)) {
                         bzero(&blk_buffer[i], sizeof(blk_buffer_t));
                         blk_buffer[i].drive = -1;
 #ifdef BLKIO_DEBUG
@@ -125,7 +125,7 @@ blk_buffer_t *blk_buffer_get(void)
         }
 
         /* flush buffer acc0_idx if dirty */
-        if (blk_buffer[acc0_idx].dirty) {
+        if (blk_buffer[acc0_idx].flags | BUFFER_DIRTY) {
 #ifdef BLKIO_DEBUG
                 ser_printf("Flusing oldest cache #%u\r\n", acc0_idx);
 #endif
@@ -148,7 +148,8 @@ blk_buffer_t *blk_buffer_search(int drive, unsigned long lba)
 
         for (i = 0; i < BLK_BUFFERS; i++) {
                 if (blk_buffer[i].drive == drive &&
-                    blk_buffer[i].lba == lba) {
+                    blk_buffer[i].lba == lba &&
+                    !(blk_buffer[i].flags & BUFFER_INVAL)) {
 #ifdef BLKIO_DEBUG
                         ser_printf("sector is in cache #%u ", i);
                         ser_printf("(drive = %u, lba = %lu)\r\n",
@@ -159,6 +160,20 @@ blk_buffer_t *blk_buffer_search(int drive, unsigned long lba)
         }
 
         return NULL;
+}
+
+
+void blk_buffer_invalidate(int drive)
+{
+        /* marks all block buffers belonging to the drive
+           as invalid */
+        int i;
+
+        for (i = 0; i < BLK_BUFFERS; i++) {
+                if (blk_buffer[i].drive == drive) {
+                        blk_buffer[i].flags |= BUFFER_INVAL;
+                }
+        }
 }
 
 
@@ -493,8 +508,13 @@ int blkio_change_drive(drive_entry_t *drive)
 {
         char *vbr;
         blk_dev_t *bdev;
+        blk_drv_int13_t *drv;
 
         bdev = drive->dev;
+        drv = &bdev->drv_int13;
+        /* mark all buffers as invalid to force re-read */
+        blk_buffer_invalidate(drv->drive_number); 
+
         vbr = blkio_read_vbr(bdev, 0);
         if (!vbr) {
                 return -1;
