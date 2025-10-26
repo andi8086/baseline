@@ -948,7 +948,7 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
         return -1;
 } 
 
-
+/* For DOS API */
 int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 {
         /* we check the current directory, if it is the root directory,
@@ -959,7 +959,7 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
            no wildcards are allowed */
         vfat_dir_entry_t __far *dire;
         int res;
-
+        char __far *n;
         fcb_t __far *fcb = _MK_FP(fcb_seg, fcb_offs);
         drive_entry_t *drive;
          
@@ -972,10 +972,20 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
                 fcb->drive_id = current_drive;
         }
 
+        /* check file name to not contain ? */
+        n = fcb->file_name; 
+        for (res = 0; res < 11; res++) {
+                if (*n == '?') {
+                        /* invalid file name */
+                        return -2;
+                }
+                n++;
+        }
+
+#ifdef BLKIO_DEBUG
         printf("fopen_fcb: drive_id = %u\r\n", fcb->drive_id);
-        printf("           file_name = %.8s.%.3s\r\n",
-               fcb->file_name,
-               fcb->file_ext);
+        printf("           file_name = %.11s\r\n", fcb->file_name);
+#endif
         /* search current directory for the file name,
            the directory is stored in the open_file struct,
            and the FCB itself gets a pointer to the file
@@ -985,14 +995,11 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         drive = &drive_table[fcb->drive_id - 1];
 
-
-        while (vfat_dir_search(&drive->dev->vfat,
-               drive->current_dir_cluster, fcb) == 0) {
-                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
-        };
-        /*if (res == -1) {
+        if (vfat_dir_search(&drive->dev->vfat,
+               drive->current_dir_cluster, fcb) != 0) {
+                /* file not found */
                 return -1;
-        }; */
+        }
 
         dire = (vfat_dir_entry_t *)dta;
 #ifdef BLKIO_DEBUG
@@ -1001,11 +1008,7 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
                    fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
         ser_printf("*************************\r\n");
 #endif
-        fcb->dir_rel = 0;
-        fcb->dir_lba = 0;
-        while (vfat_dir_search(&drive->dev->vfat, 12, fcb) == 0) {
-                debug_dump_dir_entry((vfat_dir_entry_t __far *)dta);
-        }
+
         return 0; 
 }
 
@@ -1030,32 +1033,4 @@ void debug_dump_file(void)
                                 x->file_ext);
 
         vfat_fopen_fcb(_FP_SEG(x), _FP_OFF(x));
-
-        return;
-
-/*
-        b = &drive->dev->drv_gen;
-        vfat = &drive->dev->vfat;
-*/
-        /* calculate LBA of cluster (cluster 2 is the first of the
-           data area */
-/*
-        lba = 0;
-        tmp = file_cluster - 2;
-        for (i = 0; i < vfat->cluster_size; i++) {
-                lba += tmp;
-        }
-
-        lba += vfat->data_start;
-        
-        b->read(b, _FP_SEG(sector_buffer), _FP_OFF(sector_buffer),
-                lba, 1);
-
-        s = (char *)sector_buffer;
-        for (i = 0; i < 16; i++) {
-                printf("%32.32s", s);
-                s += 32;
-        }
-*/
-
 }

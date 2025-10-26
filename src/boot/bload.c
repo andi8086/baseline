@@ -13,6 +13,9 @@
 const char *msg_drive_not_ready = "\r\nDrive not ready\r\n";
 const char *msg_drive_invalid = "\r\nInvalid drive\r\n";
 const char *msg_path_not_found = "\r\nPath not found\r\n";
+const char *msg_file_not_found = "\r\nFile not found\r\n";
+const char *msg_file_name_inval = "\r\nInvalid file name\r\n";
+
 
 int main(void);
 uint16_t read_far16(uint16_t seg, uint16_t offs);
@@ -40,8 +43,9 @@ int change_drive(char drive_letter);
 void command_dir(char __far *param);
 int command_cd(char __far *param, int virtual);
 void command_cls(void);
+void command_type(char __far *param);
 
-const char *hello_msg = "\r\nBaseline, v0.1\r\n"
+const char *hello_msg = "\r\nA-DOS, v0.1\r\n"
                         "(C)2025 by Andreas J. Reichel\r\n";
 
 char input_buffer[128];
@@ -200,7 +204,15 @@ int main(void)
                         } else if (res == 2) {
                                 printf(msg_drive_invalid);
                         }
-                } else {
+                } else
+                if (cmd_len == 4 && strncmp(s, "TYPE", 4) == 0) {
+                        s = strtok(NULL, " ");
+                        command_type(s);
+                } else
+                if (cmd_len == 3 && strncmp(s, "VER", 3) == 0) {
+                        printf(hello_msg);
+                }
+                else {
                         printf("\r\n?");
                 }
         } 
@@ -234,6 +246,36 @@ kernel_halt:
 
         return 0;
 }
+
+
+void command_type(char __far *param)
+{
+        int res;
+        fcb_t fcb_local;
+        fcb_t __far *fcb = &fcb_local;
+        extern char __far *dta;
+        vfat_dir_entry_t __far *dire = (vfat_dir_entry_t *)dta;
+
+        memset(fcb, 0, sizeof(fcb_t));
+        fcb->drive_id = current_drive;
+        /* set up file name in FCB */
+        to_upper(param);
+        fcb_set_filename(fcb, param);
+
+        /* try to open file */
+        res = vfat_fopen_fcb(_FP_SEG(fcb), _FP_OFF(fcb));
+
+        if (res == -1) {
+                printf(msg_file_not_found);
+                return;
+        } else if (res == -2) {
+                printf(msg_file_name_inval);
+                return;
+        }
+        printf("\r\ndir lba: %lu, dir_rel: %u, cluster: %u\r\n",
+               fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
+}
+
 
 
 int change_drive(char drive_letter)
