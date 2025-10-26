@@ -581,6 +581,21 @@ void command_dir(char __far *param)
         extern uint8_t __far *dta;
         vfat_dir_entry_t __far *e;
         uint16_t count = 0;
+        char saved_drive_letter = 'A' + current_drive - 1;
+        int res;
+
+        /* first check if we have a drive specification */
+        if (param && strlen(param) >= 2 && param[1] == ':') {
+                res = change_drive(param[0]); 
+                if (res == 1) {
+                        printf(msg_drive_not_ready);
+                        return;
+                } else if (res == 2) {
+                        printf(msg_drive_invalid);
+                        return;
+                }
+                param += 2;
+        } 
 
         memset(&fcb, 0, sizeof(fcb_t));
 
@@ -588,7 +603,7 @@ void command_dir(char __far *param)
         drive = &drive_table[fcb.drive_id - 1];
 
 
-        if (param) {
+        if (param && strlen(param) > 0) {
                 to_upper(param);
                 fcb_set_filename(&fcb, param);
         } else {
@@ -607,4 +622,5 @@ void command_dir(char __far *param)
         printf("%10u Files %13lu Bytes\r\n", count, bytes_used);
         printf("%30lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
 
+        change_drive(saved_drive_letter);
 }
