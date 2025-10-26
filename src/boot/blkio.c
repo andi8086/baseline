@@ -821,7 +821,8 @@ int file_compare_wild(char __far *dst, char __far *src)
 int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                     fcb_t __far *fcb)
 {
-
+        /* The drive_id (first byte of FCB) is used to select
+           the drives geometry and FAT driver */
         vfat_dir_entry_t __far *dire;
         uint16_t entry;
         drive_entry_t *drive = &drive_table[fcb->drive_id - 1];

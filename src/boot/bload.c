@@ -10,6 +10,8 @@
 
 #include <stddef.h>
 
+const char *msg_drive_not_ready = "\r\nDrive not ready\r\n";
+const char *msg_drive_invalid = "\r\nInvalid drive\r\n";
 
 int main(void);
 uint16_t read_far16(uint16_t seg, uint16_t offs);
@@ -33,6 +35,7 @@ void _cstart(void)
 
 extern uint8_t current_drive;
 void to_upper(char __far *str);
+int change_drive(char drive_letter);
 void command_dir(char __far *param);
 void command_cd(char __far *param);
 void command_cls(void);
@@ -153,6 +156,7 @@ int main(void)
                 char __far *s;
                 char __far *dir = drive->current_dir;
                 int cmd_len;
+                int res;
 
                 if (strlen(dir) > 1) {
                         dir++;
@@ -182,21 +186,12 @@ int main(void)
                 } else
                 if (cmd_len == 2 && s[1] == ':' &&
                     (s[0] >= 'A' && s[0] <= 'Z')) {
-
-                        int lw = 0;
-                        for (lw = 0; lw < max_drive; lw++) {
-                                if (drive_table[lw].drive_letter == s[0]) {
-                                        if (blkio_change_drive(
-                                                &drive_table[lw]) == 0) {
-                                                current_drive = lw + 1;
-                                                break;
-                                        } else {
-                                                printf("\r\nDrive not ready\r\n");
-                                                break;
-                                        }
-                                }
+                        res = change_drive(s[0]);
+                        if (res == 1) {
+                                printf(msg_drive_not_ready);
+                        } else if (res == 2) {
+                                printf(msg_drive_invalid);
                         }
-
                 } else {
                         printf("\r\n?");
                 }
@@ -230,6 +225,26 @@ kernel_halt:
         goto kernel_halt;
 
         return 0;
+}
+
+
+int change_drive(char drive_letter)
+{
+        int lw = 0;
+        for (lw = 0; lw < max_drive; lw++) {
+                if (drive_table[lw].drive_letter != drive_letter) {
+                        continue;
+                } 
+                if (blkio_change_drive(
+                        &drive_table[lw]) == 0) {
+                        current_drive = lw + 1;
+                        return 0;
+                }
+                /* Drive not ready */
+                return 1;
+        }
+        /* Unknown drive letter */
+        return 2;
 }
 
 
@@ -488,22 +503,51 @@ void command_cd(char __far *param)
         int count;
         char path_buffer[MAX_PATH]; 
         unsigned long res;
+        char current_drive_letter;
 
         printf("\r\n");
  
         drive = &drive_table[current_drive - 1];
+        current_drive_letter = 'A' + current_drive - 1;
 
         if (!param) {
                 printf("\r\n%c:%s\r\n",
-                       'A' + current_drive - 1,
+                       current_drive_letter,
                        _MK_FP(_SEG_DS(), drive->current_dir));
                 return;
+        }
+
+        if (strlen(param) >= 2 && param[1] == ':') {
+                /* drive leter specified, temporarily change drive */
+                res = change_drive(param[0]);
+                if (res == 1) {
+                        printf(msg_drive_not_ready);
+                        return;
+                } else if (res == 2) {
+                        printf(msg_drive_invalid);
+                        return;
+                }
+                drive = &drive_table[current_drive - 1];
+                /* here drive has changed, increment param */
+                param += 2;
+                if (param[0] == 0) {
+                        printf("\r\n%c:%s\r\n",
+                               param[-2],
+                               _MK_FP(_SEG_DS(), drive->current_dir));
+
+                        change_drive(current_drive_letter); 
+
+                        return;
+                } 
         }
 
         if (strlen(param) == 1 && *param == '\\') {
                 drive->current_dir[0] = '\\';
                 drive->current_dir[1] = 0;
                 drive->current_dir_cluster = 0;
+
+                change_drive(current_drive_letter); 
+
                 return;
         }
 
@@ -522,6 +566,9 @@ void command_cd(char __far *param)
         } else {
                 printf("Not found\r\n");
         }
+
+        change_drive(current_drive_letter); 
+
 }
 
 
