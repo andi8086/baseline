@@ -12,6 +12,7 @@
 
 const char *msg_drive_not_ready = "\r\nDrive not ready\r\n";
 const char *msg_drive_invalid = "\r\nInvalid drive\r\n";
+const char *msg_path_not_found = "\r\nPath not found\r\n";
 
 int main(void);
 uint16_t read_far16(uint16_t seg, uint16_t offs);
@@ -37,7 +38,7 @@ extern uint8_t current_drive;
 void to_upper(char __far *str);
 int change_drive(char drive_letter);
 void command_dir(char __far *param);
-void command_cd(char __far *param);
+int command_cd(char __far *param, int virtual);
 void command_cls(void);
 
 const char *hello_msg = "\r\nBaseline, v0.1\r\n"
@@ -179,7 +180,14 @@ int main(void)
                 } else
                 if (cmd_len == 2 && strncmp(s, "CD", 2) == 0) {
                         s = strtok(NULL, " ");
-                        command_cd(s);
+                        res = command_cd(s, 0);
+                        if (res == 1) {
+                                printf(msg_drive_not_ready);
+                        } else if (res == 2) {
+                                printf(msg_drive_invalid);
+                        } else if (res == 3) {
+                                printf(msg_path_not_found);
+                        }
                 } else
                 if (cmd_len == 3 && strncmp(s, "CLS", 3) == 0) {
                         command_cls();
@@ -493,7 +501,17 @@ invalid_path:
 }
 
 
-void command_cd(char __far *param)
+/* A virtual CD is a CD that does not alter the current
+   path string, but works on cluster level
+
+returns: 0: success
+         1: drive not ready
+         2: drive invalid
+         3: path not found
+*/
+
+
+int command_cd(char __far *param, int virtual)
 {
         extern uint8_t __far *dta;
         drive_entry_t *drive;
@@ -505,27 +523,27 @@ void command_cd(char __far *param)
         unsigned long res;
         char current_drive_letter;
 
-        printf("\r\n");
  
         drive = &drive_table[current_drive - 1];
         current_drive_letter = 'A' + current_drive - 1;
 
-        if (!param) {
-                printf("\r\n%c:%s\r\n",
-                       current_drive_letter,
-                       _MK_FP(_SEG_DS(), drive->current_dir));
-                return;
+        if (!virtual) {
+                printf("\r\n");
+                if (!param) {
+                        printf("\r\n%c:%s\r\n",
+                               current_drive_letter,
+                               _MK_FP(_SEG_DS(), drive->current_dir));
+                        return 0;
+                }
         }
 
-        if (strlen(param) >= 2 && param[1] == ':') {
+        if (!virtual && strlen(param) >= 2 && param[1] == ':') {
                 /* drive leter specified, temporarily change drive */
                 res = change_drive(param[0]);
                 if (res == 1) {
-                        printf(msg_drive_not_ready);
-                        return;
+                        return 1;
                 } else if (res == 2) {
-                        printf(msg_drive_invalid);
-                        return;
+                        return 2;
                 }
                 drive = &drive_table[current_drive - 1];
                 /* here drive has changed, increment param */
@@ -537,38 +555,51 @@ void command_cd(char __far *param)
 
                         change_drive(current_drive_letter); 
 
-                        return;
+                        return 0;
                 } 
         }
 
         if (strlen(param) == 1 && *param == '\\') {
-                drive->current_dir[0] = '\\';
-                drive->current_dir[1] = 0;
                 drive->current_dir_cluster = 0;
 
-                change_drive(current_drive_letter); 
-
-                return;
+                if (!virtual) {
+                        drive->current_dir[0] = '\\';
+                        drive->current_dir[1] = 0;
+                        change_drive(current_drive_letter); 
+                }
+                return 0;
         }
 
         /* directory specified, scan for it */
         path_buffer[0] = 0;
-        res = scan_path(param, SCANPATH_DIR, path_buffer);
+        if (!virtual) {
+                res = scan_path(param, SCANPATH_DIR, path_buffer);
+        } else {
+                res = scan_path(param, SCANPATH_DIR, NULL);
+        }
 
         if (res != 1) {
-                memcpy(drive->current_dir,
-                       _MK_FP(_SEG_DS(), path_buffer),
-                       strlen(_MK_FP(_SEG_DS(), path_buffer)) + 1);
+                if (!virtual) {
+                        memcpy(drive->current_dir,
+                               _MK_FP(_SEG_DS(), path_buffer),
+                               strlen(_MK_FP(_SEG_DS(), path_buffer)) + 1);
+                }
 #ifdef PATHSCAN_DEBUG
                 printf("\r\nReturned: %s\r\n", _MK_FP(_SEG_DS(), path_buffer));
 #endif
                 drive->current_dir_cluster = res;
         } else {
-                printf("Not found\r\n");
+                if (!virtual) {
+                        change_drive(current_drive_letter); 
+                }
+                return 3;
         }
 
-        change_drive(current_drive_letter); 
+        if (!virtual) {
+                change_drive(current_drive_letter); 
+        }
 
+        return 0;
 }
 
 
@@ -582,7 +613,11 @@ void command_dir(char __far *param)
         vfat_dir_entry_t __far *e;
         uint16_t count = 0;
         char saved_drive_letter = 'A' + current_drive - 1;
-        int res;
+        int res, path_specified;
+        char __far *tmp;
+        char __far *root = "\\";
+        unsigned long saved_dir_cluster;
+
 
         /* first check if we have a drive specification */
         if (param && strlen(param) >= 2 && param[1] == ':') {
@@ -597,15 +632,69 @@ void command_dir(char __far *param)
                 param += 2;
         } 
 
+
+        /* 2nd check if a path is specified, i.e. if the string
+           contains any backslash */
+        path_specified = 0;
+        tmp = param;
+        while (*tmp) {
+                if (*tmp == '\\') {
+                        path_specified = 1;
+                        break;
+                }
+                tmp++;
+        }
+
         memset(&fcb, 0, sizeof(fcb_t));
-
         fcb.drive_id = current_drive;
-        drive = &drive_table[fcb.drive_id - 1];
+        drive = &drive_table[current_drive - 1];
+        saved_dir_cluster = drive->current_dir_cluster;
 
+        tmp = param;
 
-        if (param && strlen(param) > 0) {
-                to_upper(param);
-                fcb_set_filename(&fcb, param);
+        if (path_specified) {
+                /* goto end of string and scan backwards until
+                   backslash */
+                tmp = param + strlen(param) - 1;
+                while (*tmp != '\\' && tmp >= param) {
+                        tmp--;
+                }
+
+                if (strlen(tmp) > 0) {
+                        *tmp = 0;
+                        tmp++;
+                } else {
+                        tmp = 0;
+                }
+
+                if (*param == 0) {
+                        param = root;
+                }
+
+#ifdef DIR_DEBUG
+                printf("path is: %s\r\n", param);
+                printf("file is: %s\r\n", tmp);
+                goto debug_done;
+#endif 
+                /* Now we have separated the file name (if any)
+                   from the directory and first CD into the directory */
+
+                /* do a virtual directory change */
+                res = command_cd(param, 1);
+                if (res) {
+                        switch (res) {
+                        case 1: printf(msg_drive_not_ready); break;
+                        case 2: printf(msg_drive_invalid); break;
+                        case 3: printf(msg_path_not_found); break;
+                        default: break;
+                        }
+                        goto dir_done;
+                }
+        }
+
+        if (param && strlen(tmp) > 0) {
+                to_upper(tmp);
+                fcb_set_filename(&fcb, tmp);
         } else {
                 strncpy(fcb.file_name, "????????", 8);
                 strncpy(fcb.file_ext, "???", 3); 
@@ -621,6 +710,11 @@ void command_dir(char __far *param)
         }
         printf("%10u Files %13lu Bytes\r\n", count, bytes_used);
         printf("%30lu Bytes free\r\n", vfat_free_space(&drive->dev->vfat));
-
+#ifdef DIR_DEBUG
+debug_done:
+#endif
+dir_done:
         change_drive(saved_drive_letter);
+        drive = &drive_table[current_drive - 1];
+        drive->current_dir_cluster = saved_dir_cluster;
 }
