@@ -60,6 +60,7 @@ void blkio_init(uint8_t boot_drive)
         /* A = 1, B = 2, C = 3, ... */
         current_drive = boot_drive + 1;
 
+        /* FIXME: this is just a hack for now */
         dta = sector_buffer;
 
         for (i = 0; i < BLK_BUFFERS; i++) {
@@ -714,11 +715,20 @@ unsigned long int next_cluster(vfs_vfat_t *vfat, unsigned long int cluster)
         unsigned int e = fat_offset % 512;
         unsigned int v;
 
-        vfat->drv->read(vfat->drv, _FP_SEG(FAT_table), _FP_OFF(FAT_table),
-                       s, 1);
-        vfat->drv->read(vfat->drv, _FP_SEG(&FAT_table[512]),
-                                  _FP_OFF(&FAT_table[512]),
-                       s + 1, 1);
+        static blk_drv_t *curr_drv = 0;
+        static unsigned int current_s = 0;
+
+        if (current_s != s || curr_drv != vfat->drv) {
+
+                vfat->drv->read(vfat->drv, _FP_SEG(FAT_table), _FP_OFF(FAT_table),
+                               s, 1);
+                vfat->drv->read(vfat->drv, _FP_SEG(&FAT_table[512]),
+                                          _FP_OFF(&FAT_table[512]),
+                               s + 1, 1);
+
+                current_s = s;
+                curr_drv = vfat->drv;
+        }
        
         v = *(unsigned short *)&FAT_table[e];
         v = (c & 1) ? v >> 4 : v & 0xFFF; 
@@ -852,18 +862,17 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
  
                 for (; entry < vfat->root_dir_entries; entry++) {
                         if (entry % 16 == 0 || must_read) {
-                                b->read(b, _FP_SEG(dta), _FP_OFF(dta),
+                                b->read(b, _FP_SEG(sector_buffer),
+                                        _FP_OFF(sector_buffer),
                                         dir_lba + entry / 16, 1);
                                 must_read = 0;
                         }
-                        dire = (vfat_dir_entry_t __far *)dta + entry % 16;
+                        dire = (vfat_dir_entry_t __far *)sector_buffer +
+                               entry % 16;
                         if (dir_entry_valid((char __far *)dire) &&
                             !file_compare_wild((char __far *)dire,
                                 (char __far *)fcb + 1)) {
-                                if (entry % 16) {
-                                        /* if zero, it is already there */
-                                        memcpy(dta, dire, sizeof(vfat_dir_entry_t));
-                                }
+                                memcpy(dta, dire, sizeof(vfat_dir_entry_t));
                                 fcb->dir_lba = dir_lba + entry / 16;
                                 fcb->dir_rel = entry % 16; 
 
@@ -915,14 +924,15 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                                 for (; entry < 16; entry++) {
                                         if ((entry & 15) == 0 || must_read) {
                                                 b->read(b,
-                                                        _FP_SEG(dta),
-                                                        _FP_OFF(dta),
+                                                        _FP_SEG(sector_buffer),
+                                                        _FP_OFF(sector_buffer),
                                                         dir_lba + rel +
                                                         (entry >> 4),
                                                         1);
                                                 must_read = 0;
                                         }
-                                        dire = (vfat_dir_entry_t __far *)dta +
+                                        dire = (vfat_dir_entry_t __far *)
+                                                sector_buffer +
                                                entry % 16;
                                         if (dir_entry_valid(
                                                 (char __far *)dire) &&
@@ -933,10 +943,7 @@ int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                                                         rel +
                                                      (entry >> 4);
                                                 fcb->dir_rel = entry % 16; 
-                                                if (entry % 16) {
-                                                        /* if zero, it is already there */
-                                                        memcpy(dta, dire, sizeof(vfat_dir_entry_t));
-                                                }
+                                                memcpy(dta, dire, sizeof(vfat_dir_entry_t));
                                                 return 0;
                                         }
                                 }
@@ -995,13 +1002,14 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 
         drive = &drive_table[fcb->drive_id - 1];
 
+        dta = sector_buffer;
         if (vfat_dir_search(&drive->dev->vfat,
                drive->current_dir_cluster, fcb) != 0) {
                 /* file not found */
                 return -1;
         }
 
-        dire = (vfat_dir_entry_t *)dta;
+        dire = (vfat_dir_entry_t *)sector_buffer;
 #ifdef BLKIO_DEBUG
         ser_printf("*************************\r\n");
         ser_printf("dir lba: %lu, dir_rel: %u, cluster: %u\r\n",
@@ -1009,28 +1017,159 @@ int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
         ser_printf("*************************\r\n");
 #endif
 
+        /* search for a free file handle */
+        for (res = 0; res < MAX_FILES; res++) {
+                if (open_files[res].ref_count == 0) {
+                        break;
+                }
+        }        
+
+        if (res == MAX_FILES) {
+                /* Too many open files */
+                return -3;
+
+        }
+
+        memcpy(&open_files[res].dire, dire, sizeof(*dire));
+
+        open_files[res].ref_count = 1;
+        open_files[res].vfat = &drive->dev->vfat;
+        open_files[res].drv = &drive->dev->drv_gen;
+
+        open_files[res].file_ptr_seq = 0;
+        open_files[res].current_lba_seq = 0;
+        open_files[res].current_rel_seq = 0;
+
+        open_files[res].file_ptr_rnd = 0;
+        open_files[res].current_lba_rnd = 0;
+        open_files[res].current_rel_rnd = 0;         
+
+        fcb->file_handle = res;
+
+        fcb->rec_size = 128;
+        fcb->file_size_lo = dire->file_size_lo;
+        fcb->file_size_hi = dire->file_size_hi;
+
         return 0; 
 }
 
 
-void debug_dump_file(void)
+int vfat_fclose_fcb(uint16_t fcb_seg, uint16_t fcb_offs)
 {
-        blk_drv_t *b;
+        fcb_t __far *fcb = _MK_FP(fcb_seg, fcb_offs);
+
+        /* Mark file table entry as unused */
+        open_files[fcb->file_handle].ref_count = 0;
+
+        fcb->file_handle = 0;
+
+        return 0;
+}
+
+
+int vfat_read_sequential_fcb(uint16_t fcb_seg, uint16_t fcb_off)
+{
+        fcb_t __far *x;
+        unsigned long rel_lba;
+        uint16_t cluster;
+        uint16_t sector;
         vfs_vfat_t *vfat;
-        unsigned long lba, tmp;
-        int i;
-        char *s;
-        fcb_t fcb;
+        blk_drv_t *drv;
+        uint16_t src_cluster;
+        uint16_t sector_offset;
+        uint16_t record_remainder;
+        uint8_t __far *dst;
+        uint16_t to_read;
 
-        fcb_t __far *x = &fcb;
+        x = _MK_FP(fcb_seg, fcb_off);
 
-        memset(x, 0, sizeof(fcb_t));
-//        strncpy(x->file_name, "TEST    ", 8);
-        strncpy(x->file_name, "????????", 8);
-        strncpy(x->file_ext, "TXT", 3); 
+        /* determine current lba sector relative to file start */
+        rel_lba = x->current_block * x->rec_size * 128 +
+                  x->seq_rec_number * x->rec_size;
+        sector_offset = rel_lba & (512 - 1);
+        rel_lba >>= 9;
+ 
+        vfat = open_files[x->file_handle].vfat;
+        drv = open_files[x->file_handle].drv;
 
-        printf("%.8s.%.3s\r\n", x->file_name,
-                                x->file_ext);
+        switch (vfat->cluster_size) {
+        case 1: cluster = (uint16_t)rel_lba; sector = 0; break;
+        case 2: cluster = rel_lba >> 1; sector = rel_lba & 1; break;
+        case 4: cluster = rel_lba >> 2; sector = rel_lba & 3; break;
+        case 8: cluster = rel_lba >> 3; sector = rel_lba & 7; break;
+        case 16: cluster = rel_lba >> 4; sector = rel_lba & 15; break;
+        default:
+                return -1;
+        } 
+     
+        src_cluster = open_files[x->file_handle].dire.start_cluster;
 
-        vfat_fopen_fcb(_FP_SEG(x), _FP_OFF(x));
+        /* advance relatively to cluster, using FAT */
+//        printf("\r\nstart FAT chain...");
+        while (cluster) {
+                src_cluster = next_cluster(vfat, src_cluster);
+                if (!src_cluster) {
+                        /* FIXME: EOF */
+                        return -1;
+                }
+                cluster--;
+        }
+//        printf("end FAT chain\r\n");
+//        printf("src_cluster = %u\r\n", src_cluster);
+       
+        record_remainder = x->rec_size;
+        dst = dta;
+        
+        while (record_remainder) {
+
+                rel_lba = cluster_to_lba(vfat, src_cluster);
+                rel_lba += sector;
+
+#ifdef DEBUG_SEQ_READ
+                ser_printf("To read: %u\r\n", record_remainder);
+                ser_printf("Cluster: %u,  LBA: %u\r\n", src_cluster, rel_lba);
+#endif
+
+                drv->read(drv, _FP_SEG(sector_buffer), _FP_OFF(sector_buffer),
+                          rel_lba, 1);
+                if (record_remainder + sector_offset > 512) {
+                        to_read = 512 - sector_offset;
+                } else {
+                        to_read = record_remainder;
+                }
+
+                memcpy(dst, sector_buffer + sector_offset, to_read);
+
+                dst += to_read;
+                record_remainder -= to_read;
+                sector_offset += to_read;
+
+                if (!record_remainder) {
+                        break;
+                }
+
+                /* we should never be greater than 511 here */
+                if (sector_offset >= 512) {
+                        sector_offset = 0;    
+                        sector++;
+                        if (sector == vfat->cluster_size) {
+                                sector = 0;
+                                src_cluster = next_cluster(vfat, src_cluster); 
+                                if (!src_cluster) {
+                                        /* EOF encountered, partial record
+                                           read */
+                                        return -1;
+                                }
+                        }
+                }
+        }
+
+        /* Increment sequential file pointer */
+        x->seq_rec_number++;
+        if (x->seq_rec_number > 127) {
+                x->seq_rec_number = 0;
+                x->current_block++;
+        }
+
+        return 0; 
 }

@@ -255,6 +255,7 @@ void command_type(char __far *param)
         fcb_t __far *fcb = &fcb_local;
         extern char __far *dta;
         vfat_dir_entry_t __far *dire = (vfat_dir_entry_t *)dta;
+        int i;
 
         memset(fcb, 0, sizeof(fcb_t));
         fcb->drive_id = current_drive;
@@ -272,8 +273,24 @@ void command_type(char __far *param)
                 printf(msg_file_name_inval);
                 return;
         }
+
+/*
         printf("\r\ndir lba: %lu, dir_rel: %u, cluster: %u\r\n",
                fcb->dir_lba, fcb->dir_rel, dire->start_cluster);
+
+        printf("Current-Block: %u, Record-Size: %u\r\n",
+                fcb->current_block, fcb->rec_size);
+*/
+        while ((res = vfat_read_sequential_fcb(_FP_SEG(fcb),
+                _FP_OFF(fcb))) == 0) {
+
+                for (i = 0; i < 128; i++) {
+                        putc(*(dta + i));
+                }
+ //               printf("Next record %u\r\n", fcb->seq_rec_number);
+        }
+
+        res = vfat_fclose_fcb(_FP_SEG(fcb), _FP_OFF(fcb));
 }
 
 

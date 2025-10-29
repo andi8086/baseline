@@ -207,10 +207,10 @@ extern drive_entry_t drive_table[MAX_DRIVES];
 int vfat_init_from_vbr(vfs_vfat_t *vfat, char *vbr);
 
 typedef struct {
+        uint8_t ref_count;
         vfat_dir_entry_t dire;
         unsigned long int dir_lba;
         unsigned int dir_rel;
-        uint8_t ref_count;
         blk_drv_t *drv;
         vfs_vfat_t *vfat;
         /* sequential file access */
@@ -225,6 +225,9 @@ typedef struct {
 
 int vfat_dir_search(vfs_vfat_t *vfat, unsigned long dir_cluster,
                     fcb_t __far *fcb);
+int vfat_fclose_fcb(uint16_t fcb_seg, uint16_t fcb_offs);
+int vfat_fopen_fcb(uint16_t fcb_seg, uint16_t fcb_offs);
+
 
 unsigned long vfat_free_space(vfs_vfat_t *vfat);
 
